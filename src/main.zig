@@ -15,6 +15,7 @@ pub fn main() !void {
     _ = allocator;
 
     print("{any}\n", .{row_count});
+    _ = config.row_config.len;
 }
 
 const Coord = struct { x: u8, y: u8 };
@@ -147,27 +148,24 @@ test Board {
 
     const nodes = std.AutoHashMap(Move, Node).init(std.testing.allocator);
     _ = try expand(moves.items, nodes);
-
-    _ = Config.init();
 }
 
+const config = GameConfig.init();
 const row_count: i32 = 6 * BoardSize - 22;
 const RowConfig = struct { x: i8, y: i8, dx: i8, dy: i8, count: i8 };
 const RowIndices = [BoardSize][BoardSize][4]u32;
-const Config = struct {
+const GameConfig = struct {
     row_config: [row_count]RowConfig,
     row_idces: RowIndices,
 
-    fn init() Config {
+    fn init() GameConfig {
+        @setEvalBranchQuota(2000);
         var row_config = [_]RowConfig{.{ .x = 0, .y = 0, .dx = 0, .dy = 0, .count = 0 }} ** row_count;
         var row_indices = [_][BoardSize][4]u32{[_][4]u32{[_]u32{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
 
-        print("1:\n", .{});
         var row_idx: u32 = 0;
         for (0..BoardSize) |i| {
             row_config[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = 0, .count = BoardSize - 5 };
-            const c = row_config[row_idx];
-            print("{}: start {}:{}  delta {}:{}  count {}\n", .{ row_idx, c.x, c.y, c.dx, c.dy, c.count });
 
             for (0..BoardSize) |j| {
                 row_indices[j][i][0] = row_idx;
@@ -176,88 +174,59 @@ const Config = struct {
             row_idx += 1;
         }
 
-        print("2:\n", .{});
         for (0..BoardSize) |i| {
             row_config[row_idx] = RowConfig{ .x = @intCast(i), .y = 0, .dx = 0, .dy = 1, .count = BoardSize - 5 };
-            const c = row_config[row_idx];
-            print("{}: start {}:{}  delta {}:{}  count {}\n", .{ row_idx, c.x, c.y, c.dx, c.dy, c.count });
 
             for (0..BoardSize) |j| {
                 row_indices[i][j][1] = row_idx;
-                // print("    idx[{}:{}] = {}\n", .{ i, j, row_idx });
             }
 
             row_idx += 1;
         }
 
-        print("3\n", .{});
         for (5..BoardSize) |i| {
             row_config[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = -1, .count = @intCast(i - 4) };
-            const c = row_config[row_idx];
-            print("{}: start {}:{}  delta {}:{}  count {}\n", .{ row_idx, c.x, c.y, c.dx, c.dy, c.count });
 
             for (0..i + 1) |j| {
                 row_indices[j][i - j][2] = row_idx;
-                // print("    idx[{}:{}] = {}\n", .{ j, i - j, row_idx });
             }
 
             row_idx += 1;
         }
 
-        print("4\n", .{});
         for (1..BoardSize - 5) |i| {
             row_config[row_idx] = RowConfig{ .x = @intCast(i), .y = BoardSize - 1, .dx = 1, .dy = -1, .count = @intCast(BoardSize - 5 - i) };
-            const c = row_config[row_idx];
-            print("{}: start {}:{}  delta {}:{}  count {}\n", .{ row_idx, c.x, c.y, c.dx, c.dy, c.count });
 
             for (i..BoardSize) |j| {
                 row_indices[j][BoardSize - 1 + i - j][2] = row_idx;
-                // print("    idx[{}:{}] = {}\n", .{ j, BoardSize - 1 + i - j, row_idx });
             }
 
             row_idx += 1;
         }
 
-        print("5\n", .{});
         for (5..BoardSize) |i| {
             row_config[row_idx] = RowConfig{ .x = @intCast(BoardSize - 1 - i), .y = 0, .dx = 1, .dy = 1, .count = @intCast(i - 4) };
-            const c = row_config[row_idx];
-            print("{}: start {}:{}  delta {}:{}  count {}\n", .{ row_idx, c.x, c.y, c.dx, c.dy, c.count });
 
             for (0..i + 1) |j| {
                 row_indices[BoardSize - 1 - i + j][j][3] = row_idx;
-                // print("    idx[{}:{}] = {}\n", .{ BoardSize - 1 - i + j, j, row_idx });
             }
 
             row_idx += 1;
         }
 
-        print("6\n", .{});
         for (1..BoardSize - 5) |i| {
             row_config[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = 1, .count = @intCast(BoardSize - 5 - i) };
-            const c = row_config[row_idx];
-            print("{}: start {}:{}  delta {}:{}  count {}\n", .{ row_idx, c.x, c.y, c.dx, c.dy, c.count });
 
             for (0..BoardSize - i) |j| {
                 row_indices[j][i + j][3] = row_idx;
-                print("    idx[{}:{}] = {}\n", .{ j, i + j, row_idx });
             }
 
             row_idx += 1;
         }
-        print("\n", .{});
 
-        for (0..BoardSize) |i| {
-            for (0..BoardSize) |j| {
-                const r = row_indices[i][j];
-                print("{}:{} - {} {} {} {}\n", .{ i, j, r[0], r[1], r[2], r[3] });
-            }
-        }
-
-        return Config{ .row_config = row_config, .row_idces = row_indices };
+        return GameConfig{ .row_config = row_config, .row_idces = row_indices };
     }
 };
-const config = Config.init();
 
 // pub const std_options = std.Options{
 //     .log_level = .debug,
