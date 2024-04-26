@@ -25,6 +25,8 @@ const Node = struct {};
 
 const BoardSize = 19;
 
+const Idx = i8;
+
 const Board = struct {
     places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
 
@@ -34,7 +36,8 @@ const Board = struct {
         return board;
     }
 
-    fn get(self: Board, x: i8, y: i8) Player {
+    fn get(self: Board, x: Idx, y: Idx) Player {
+        // std.debug.print("    get[{}][{}] -> {}\n", .{ x, y, self.places[@intCast(x)][@intCast(y)] });
         return self.places[@intCast(x)][@intCast(y)];
     }
 
@@ -54,11 +57,26 @@ const Board = struct {
 
 const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 
-const Scores = struct {
-    places: [BoardSize][BoardSize]i32 = [1][BoardSize]i32{[1]i32{0} ** BoardSize} ** BoardSize,
+const Score = u32;
 
-    fn get(self: Scores, x: i8, y: i8) i32 {
+const Scores = struct {
+    places: [BoardSize][BoardSize]Score = [1][BoardSize]Score{[1]Score{0} ** BoardSize} ** BoardSize,
+
+    inline fn get(self: Scores, x: Idx, y: Idx) Score {
         return self.places[@intCast(x)][@intCast(y)];
+    }
+
+    inline fn inc(self: *Scores, x: Idx, y: Idx, value: Score) void {
+        self.places[@intCast(x)][@intCast(y)] += value;
+    }
+
+    fn print(self: Scores) void {
+        for (0..BoardSize) |j| {
+            for (0..BoardSize) |i| {
+                std.debug.print("{:3} ", .{self.places[i][j]});
+            }
+            std.debug.print("\n", .{});
+        }
     }
 };
 
@@ -97,7 +115,7 @@ pub fn expand(moves: []const Move, nodes: std.AutoHashMap(Move, Node)) !void {
     }
     print("places = {any}\n\n\n", .{places.items});
 
-    var j: i32 = 1;
+    var j: Score = 1;
     for (places.items[0 .. places.items.len - 1], 1..) |one, i| {
         for (places.items[i..]) |two| {
             print("expand {} {}:{} - {}:{}\n", .{ j, one.x, one.y, two.x, two.y });
@@ -167,21 +185,47 @@ fn score_place(board: Board, scores: *Scores, place: Coord) void {
     }
 }
 
+const values = [_]Score{ 1, 4, 16, 64, 256 };
 fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
-    print("{}:{} {}:{} {}: ", .{ row_config.x, row_config.y, row_config.dx, row_config.dy, row_config.count });
+    // print("{}:{} {}:{} {}\n", .{ row_config.x, row_config.y, row_config.dx, row_config.dy, row_config.count });
     if (row_config.count == 0) return;
 
-    var sum = @intFromEnum(board.get(row_config.x, row_config.y)) +
-        @intFromEnum(board.get(row_config.x, row_config.y)) +
-        @intFromEnum(board.get(row_config.x + 2 * row_config.dx, row_config.y + 2 * row_config.dy)) +
-        @intFromEnum(board.get(row_config.x + 3 * row_config.dx, row_config.y + 3 * row_config.dy)) +
-        @intFromEnum(board.get(row_config.x + 4 * row_config.dx, row_config.y + 4 * row_config.dy)) +
-        @intFromEnum(board.get(row_config.x + 5 * row_config.dx, row_config.y + 5 * row_config.dy));
+    var x = row_config.x;
+    var y = row_config.y;
+    const dx: Idx = row_config.dx;
+    const dy: Idx = row_config.dy;
 
-    print("sum = {}\n", .{sum});
-    sum += 1;
-    _ = scores;
+    var sum: usize = @intFromEnum(board.get(x, y)) +
+        @intFromEnum(board.get(x + dx, y + dy)) +
+        @intFromEnum(board.get(x + 2 * dx, y + 2 * dy)) +
+        @intFromEnum(board.get(x + 3 * dx, y + 3 * dy)) +
+        @intFromEnum(board.get(x + 4 * dx, y + 4 * dy)) +
+        @intFromEnum(board.get(x + 5 * dx, y + 5 * dy));
 
+    // print("  sum[{}:{}] = {x}\n", .{ x, y, sum });
+    var i: u8 = 0;
+    while (true) {
+        const value: Score = if (sum & 0x70 == 0) values[sum] else if (sum & 0x07 == 0) values[sum >> 4] else 0;
+
+        scores.inc(x, y, value);
+        scores.inc(x + dx, y + dy, value);
+        scores.inc(x + 2 * dx, y + 2 * dy, value);
+        scores.inc(x + 3 * dx, y + 3 * dy, value);
+        scores.inc(x + 4 * dx, y + 4 * dy, value);
+        scores.inc(x + 5 * dx, y + 5 * dy, value);
+        i += 1;
+        if (i == row_config.count) {
+            break;
+        }
+        sum -= @intFromEnum(board.get(x, y));
+        x += dx;
+        y += dy;
+        sum += @intFromEnum(board.get(x + 5 * dx, y + 5 * dy));
+
+        // print("  sum[{}:{}] = {}\n", .{ x, y, sum });
+    }
+
+    // scores.print();
     // TODO: Finish
 }
 
@@ -211,14 +255,14 @@ test Board {
     const board = Board.init();
     var scores = Scores{};
 
-    score_place(board, &scores, Coord{ .x = 7, .y = 7 });
+    score_place(board, &scores, Coord{ .x = 7, .y = 9 });
     board.print();
 }
 
 const config = GameConfig.init();
-const row_count: i32 = 6 * BoardSize - 21;
-const RowConfig = struct { x: i8, y: i8, dx: i8, dy: i8, count: i8 };
-const RowIndices = [BoardSize][BoardSize][4]u32;
+const row_count: Score = 6 * BoardSize - 21;
+const RowConfig = struct { x: Idx, y: Idx, dx: Idx, dy: Idx, count: Idx };
+const RowIndices = [BoardSize][BoardSize][4]Score;
 const GameConfig = struct {
     row_config: [row_count]RowConfig,
     row_idces: RowIndices,
@@ -226,9 +270,9 @@ const GameConfig = struct {
     fn init() GameConfig {
         @setEvalBranchQuota(2000);
         var row_config = [_]RowConfig{.{ .x = 0, .y = 0, .dx = 0, .dy = 0, .count = 0 }} ** row_count;
-        var row_indices = [_][BoardSize][4]u32{[_][4]u32{[_]u32{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
+        var row_indices = [_][BoardSize][4]Score{[_][4]Score{[_]Score{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
 
-        var row_idx: u32 = 1;
+        var row_idx: Score = 1;
         for (0..BoardSize) |i| {
             row_config[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = 0, .count = BoardSize - 5 };
 
