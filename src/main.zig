@@ -179,6 +179,14 @@ fn add_places_to_consider(place: Coord, places: *std.AutoHashMap(Coord, void)) !
     }
 }
 
+fn score_board(board: Board) Scores {
+    var scores = Scores{};
+    for (config.row_config) |row_config| {
+        score_row(board, &scores, row_config);
+    }
+    return scores;
+}
+
 fn score_place(board: Board, scores: *Scores, place: Coord) void {
     for (config.row_idces[place.x][place.y]) |idx| {
         score_row(board, scores, config.row_config[idx]);
@@ -187,7 +195,6 @@ fn score_place(board: Board, scores: *Scores, place: Coord) void {
 
 const values = [_]Score{ 1, 4, 16, 64, 256 };
 fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
-    // print("{}:{} {}:{} {}\n", .{ row_config.x, row_config.y, row_config.dx, row_config.dy, row_config.count });
     if (row_config.count == 0) return;
 
     var x = row_config.x;
@@ -202,7 +209,6 @@ fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
         @intFromEnum(board.get(x + 4 * dx, y + 4 * dy)) +
         @intFromEnum(board.get(x + 5 * dx, y + 5 * dy));
 
-    // print("  sum[{}:{}] = {x}\n", .{ x, y, sum });
     var i: u8 = 0;
     while (true) {
         const value: Score = if (sum & 0x70 == 0) values[sum] else if (sum & 0x07 == 0) values[sum >> 4] else 0;
@@ -221,12 +227,7 @@ fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
         x += dx;
         y += dy;
         sum += @intFromEnum(board.get(x + 5 * dx, y + 5 * dy));
-
-        // print("  sum[{}:{}] = {}\n", .{ x, y, sum });
     }
-
-    // scores.print();
-    // TODO: Finish
 }
 
 test Board {
@@ -239,24 +240,17 @@ test Board {
     const nodes = std.AutoHashMap(Move, Node).init(std.testing.allocator);
     _ = try expand(moves.items, nodes);
 
-    for (config.row_config, 0..) |c, i| {
-        print("{}: start: {}:{} delta: {}:{} count: {}\n", .{ i, c.x, c.y, c.dx, c.dy, c.count });
-    }
-
-    print("\n\n", .{});
-
-    for (0..BoardSize) |i| {
-        for (0..BoardSize) |j| {
-            const r = config.row_idces[i][j];
-            print("{}:{} - {} {} {} {}\n", .{ i, j, r[0], r[1], r[2], r[3] });
-        }
-    }
-
     const board = Board.init();
-    var scores = Scores{};
 
-    score_place(board, &scores, Coord{ .x = 7, .y = 9 });
-    board.print();
+    var timer = try std.time.Timer.start();
+    var scores: Scores = undefined;
+    for (0..100000) |_| {
+        scores = score_board(board);
+        std.mem.doNotOptimizeAway(scores);
+    }
+    const elapsed_ns = timer.read();
+    const elapsed_s = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_s;
+    print("time {d}/sec\n", .{@as(i64, @intFromFloat(100000 / elapsed_s))});
 }
 
 const config = GameConfig.init();
