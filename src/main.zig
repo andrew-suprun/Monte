@@ -25,7 +25,12 @@ const Node = struct {};
 
 const BoardSize = 19;
 
-const Idx = i8;
+const Idx = isize;
+
+const RolloutResult = union(enum) {
+    final: Player,
+    nonterminal: Player,
+};
 
 const Board = struct {
     places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
@@ -57,7 +62,7 @@ const Board = struct {
 
 const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 
-const Score = u32;
+const Score = i64;
 
 const Scores = struct {
     places: [BoardSize][BoardSize]Score = [1][BoardSize]Score{[1]Score{0} ** BoardSize} ** BoardSize,
@@ -115,11 +120,14 @@ pub fn expand(moves: []const Move, nodes: std.AutoHashMap(Move, Node)) !void {
     }
     print("places = {any}\n\n\n", .{places.items});
 
+    const scores = score_board(&board);
+
     var j: Score = 1;
     for (places.items[0 .. places.items.len - 1], 1..) |one, i| {
         for (places.items[i..]) |two| {
             print("expand {} {}:{} - {}:{}\n", .{ j, one.x, one.y, two.x, two.y });
             j += 1;
+            _ = rollout(board, scores, player, one, two);
         }
         print("\n", .{});
     }
@@ -127,8 +135,26 @@ pub fn expand(moves: []const Move, nodes: std.AutoHashMap(Move, Node)) !void {
     _ = .{ nodes, allocator };
 }
 
+fn rollout(b: Board, s: Scores, player: Player, one: Coord, two: Coord) RolloutResult {
+    var board = b;
+    var scores = s;
+
+    if (make_move(&board, &scores, player, one)) return .{ .final = player };
+    if (make_move(&board, &scores, player, two)) return .{ .final = player };
+
+    return .{ .nonterminal = .none };
+}
+
+inline fn make_move(board: *Board, scores: *Scores, player: Player, place: Coord) bool {
+    inline for (config.row_idces[place.x][place.y]) |idx| {
+        _ = score_row(board, scores, config.row_config[idx], true);
+        board.places[place.x][place.y] = player;
+        if (score_row(board, scores, config.row_config[idx], false)) return true;
+    }
+    return false;
+}
+
 fn add_places_to_consider(place: Coord, places: *std.AutoHashMap(Coord, void)) !void {
-    print("place: {}:{}\n", .{ place.x, place.y });
     if (place.y > 0) {
         try places.put(Coord{ .x = place.x, .y = place.y - 1 }, {});
         if (place.x > 0) {
@@ -179,23 +205,18 @@ fn add_places_to_consider(place: Coord, places: *std.AutoHashMap(Coord, void)) !
     }
 }
 
-fn score_board(board: Board) Scores {
+fn score_board(board: *Board) Scores {
     var scores = Scores{};
     for (config.row_config) |row_config| {
-        score_row(board, &scores, row_config);
+        _ = score_row(board, &scores, row_config, false);
     }
     return scores;
 }
 
-fn score_place(board: Board, scores: *Scores, place: Coord) void {
-    for (config.row_idces[place.x][place.y]) |idx| {
-        score_row(board, scores, config.row_config[idx]);
-    }
-}
+const values = [_]Score{ 1, 4, 16, 64, 256, 1024, 32768 };
 
-const values = [_]Score{ 1, 4, 16, 64, 256 };
-fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
-    if (row_config.count == 0) return;
+fn score_row(board: *Board, scores: *Scores, row_config: RowConfig, comptime clear: bool) bool {
+    if (row_config.count == 0) return false;
 
     var x = row_config.x;
     var y = row_config.y;
@@ -211,7 +232,9 @@ fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
 
     var i: u8 = 0;
     while (true) {
-        const value: Score = if (sum & 0x70 == 0) values[sum] else if (sum & 0x07 == 0) values[sum >> 4] else 0;
+        const v: Score = if (sum & 0x70 == 0) values[sum] else if (sum & 0x07 == 0) values[sum >> 4] else 0;
+        if (v >= 32768) return true;
+        const value = if (clear) -v else v;
 
         scores.inc(x, y, value);
         scores.inc(x + dx, y + dy, value);
@@ -228,6 +251,7 @@ fn score_row(board: Board, scores: *Scores, row_config: RowConfig) void {
         y += dy;
         sum += @intFromEnum(board.get(x + 5 * dx, y + 5 * dy));
     }
+    return false;
 }
 
 test Board {
@@ -240,13 +264,12 @@ test Board {
     const nodes = std.AutoHashMap(Move, Node).init(std.testing.allocator);
     _ = try expand(moves.items, nodes);
 
-    const board = Board.init();
+    var board = Board.init();
 
     var timer = try std.time.Timer.start();
     var scores: Scores = undefined;
     for (0..100000) |_| {
-        scores = score_board(board);
-        std.mem.doNotOptimizeAway(scores);
+        scores = score_board(&board);
     }
     const elapsed_ns = timer.read();
     const elapsed_s = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_s;
@@ -256,7 +279,7 @@ test Board {
 const config = GameConfig.init();
 const row_count: Score = 6 * BoardSize - 21;
 const RowConfig = struct { x: Idx, y: Idx, dx: Idx, dy: Idx, count: Idx };
-const RowIndices = [BoardSize][BoardSize][4]Score;
+const RowIndices = [BoardSize][BoardSize][4]usize;
 const GameConfig = struct {
     row_config: [row_count]RowConfig,
     row_idces: RowIndices,
@@ -264,7 +287,7 @@ const GameConfig = struct {
     fn init() GameConfig {
         @setEvalBranchQuota(2000);
         var row_config = [_]RowConfig{.{ .x = 0, .y = 0, .dx = 0, .dy = 0, .count = 0 }} ** row_count;
-        var row_indices = [_][BoardSize][4]Score{[_][4]Score{[_]Score{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
+        var row_indices = [_][BoardSize][4]usize{[_][4]usize{[_]usize{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
 
         var row_idx: Score = 1;
         for (0..BoardSize) |i| {
