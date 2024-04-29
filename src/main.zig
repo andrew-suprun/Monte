@@ -68,6 +68,14 @@ const SearchTree = struct {
         const nodes = try allocator.alloc(Node, capacity);
         for (nodes, 1..) |*node, idx| node.nextSibling = @intCast(idx);
         nodes[capacity - 1].nextSibling = 0;
+        // nodes[0] is the root of the tree
+        nodes[0].child = 0;
+        nodes[0].nextSibling = 0;
+        nodes[0].prevSibling = 0;
+        nodes[0].move = [2]Coord{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } };
+        nodes[0].first_wins = 0;
+        nodes[0].second_wins = 0;
+        nodes[0].draws = 0;
         return .{
             .allocator = allocator,
             .capacity = capacity,
