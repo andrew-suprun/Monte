@@ -1,12 +1,12 @@
+places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
+
 const Board = @This();
 const std = @import("std");
+const print = std.debug.print;
 pub const BoardSize = 7;
 pub const Place = struct { x: isize, y: isize };
-pub const Move = [2]Place;
 pub const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 pub const RowConfig = struct { x: isize, y: isize, dx: isize, dy: isize, count: isize };
-
-places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
 
 pub inline fn set_place(board: *Board, place: Place, player: Player) void {
     board.places[@intCast(place.x)][@intCast(place.y)] = player;
@@ -84,16 +84,16 @@ fn add_places_to_consider(place: Place, places: *std.AutoHashMap(Place, void)) !
     }
 }
 
-fn print(self: Board) void {
+pub fn print_board(self: Board) void {
     for (0..BoardSize) |j| {
         for (0..BoardSize) |i| {
             switch (self.places[i][j]) {
-                .none => std.debug.print(". ", .{}),
-                .first => std.debug.print("O ", .{}),
-                .second => std.debug.print("X ", .{}),
+                .none => print(". ", .{}),
+                .first => print("O ", .{}),
+                .second => print("X ", .{}),
             }
         }
-        std.debug.print("\n", .{});
+        print("\n", .{});
     }
 }
 
@@ -104,7 +104,6 @@ pub fn row_config(idx: isize) RowConfig {
 }
 
 pub const row_config_data = blk: {
-    // @setEvalBranchQuota(2000);
     var row_cfg = [_]RowConfig{.{ .x = 0, .y = 0, .dx = 0, .dy = 0, .count = 0 }} ** row_count;
 
     var row_idx: usize = 1;

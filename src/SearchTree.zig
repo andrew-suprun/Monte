@@ -1,3 +1,10 @@
+allocator: Allocator,
+pool: Pool,
+capacity: usize,
+size: usize = 0,
+scores: Scores = Scores.empty_scores.clone(),
+root: *Node,
+
 const SearchTree = @This();
 const std = @import("std");
 const Scores = @import("Scores.zig");
@@ -17,13 +24,6 @@ const Node = struct {
     second_wins: u32 = 0,
     draws: u32 = 0,
 };
-
-allocator: Allocator,
-pool: Pool,
-capacity: usize,
-size: usize = 0,
-scores: Scores = Scores.empty_scores.clone(),
-root: *Node,
 
 pub fn init(allocator: Allocator, capacity: usize) SearchTree {
     var pool = Pool.init(allocator);
@@ -46,19 +46,12 @@ pub fn deinit(tree: *SearchTree) void {
     tree.pool.deinit();
 }
 
-fn make_move(tree: SearchTree, move: Scores.Move) void {
-    tree.board.make_move(move, tree.turn);
-    tree.turn = if (tree.turn == .first) .second else .first;
-}
-
 pub fn expand(tree: *SearchTree) !void {
     var scores = tree.scores.clone();
+    tree.scores.print_scores();
 
     const leaf = tree.selectLeaf(&scores);
-
-    // TODO
-
-    _ = leaf;
+    print("{any}\n", .{leaf});
 
     // var scores = board.calc_scores();
 

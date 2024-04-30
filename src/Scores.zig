@@ -1,9 +1,13 @@
+places: [BoardSize][BoardSize]Score = [1][BoardSize]Score{[1]Score{0} ** BoardSize} ** BoardSize,
+board: Board,
+turn: Player = .first,
+
 const Scores = @This();
 const std = @import("std");
+const print = std.debug.print;
 const Board = @import("Board.zig");
 const BoardSize = Board.BoardSize;
 const Place = Board.Place;
-const Move = Board.Move;
 pub const Player = Board.Player;
 const Score = i64;
 
@@ -22,10 +26,6 @@ pub const empty_scores = blk: {
     break :blk scores;
 };
 
-places: [BoardSize][BoardSize]Score = [1][BoardSize]Score{[1]Score{0} ** BoardSize} ** BoardSize,
-board: Board,
-turn: Player = .first,
-
 pub fn clone(self: Scores) Scores {
     return Scores{
         .places = self.places,
@@ -41,7 +41,7 @@ inline fn inc(self: *Scores, place: Place, value: Score) void {
     self.places[@intCast(place.x)][@intCast(place.y)] += value;
 }
 
-pub inline fn make_move(scores: *Scores, move: Move) bool {
+pub inline fn make_move(scores: *Scores, move: [2]Board.Place) bool {
     inline for (move) |place| {
         inline for (raw_indices(place)) |idx| {
             _ = scores.score_row(Board.row_config(idx), true);
@@ -75,12 +75,10 @@ fn score_row(scores: *Scores, row_config: Board.RowConfig, comptime clear: bool)
         if (v >= 32768) return true;
         const value = if (clear) -v else v;
 
-        scores.inc(.{ .x = x, .y = y }, value);
-        scores.inc(.{ .x = x + dx, .y = y + dy }, value);
-        scores.inc(.{ .x = x + 2 * dx, .y = y + 2 * dy }, value);
-        scores.inc(.{ .x = x + 3 * dx, .y = y + 3 * dy }, value);
-        scores.inc(.{ .x = x + 4 * dx, .y = y + 4 * dy }, value);
-        scores.inc(.{ .x = x + 5 * dx, .y = y + 5 * dy }, value);
+        inline for (0..6) |d| {
+            const dd: isize = @intCast(d);
+            scores.inc(.{ .x = x + dd * dx, .y = y + dd * dy }, value);
+        }
         i += 1;
         if (i == row_config.count) {
             break;
@@ -93,12 +91,12 @@ fn score_row(scores: *Scores, row_config: Board.RowConfig, comptime clear: bool)
     return false;
 }
 
-fn print(self: Scores) void {
+pub fn print_scores(self: Scores) void {
     for (0..BoardSize) |j| {
         for (0..BoardSize) |i| {
-            std.debug.print("{:3} ", .{self.places[i][j]});
+            print("{:3} ", .{self.places[i][j]});
         }
-        std.debug.print("\n", .{});
+        print("\n", .{});
     }
 }
 
@@ -109,7 +107,6 @@ pub inline fn raw_indices(place: Place) [4]isize {
 }
 
 const raw_indices_data = blk: {
-    // @setEvalBranchQuota(2000);
     var row_inds = [_][BoardSize][4]isize{[_][4]isize{[_]isize{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
 
     var row_idx: usize = 1;
