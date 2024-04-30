@@ -1,10 +1,9 @@
 const Scores = @This();
 const std = @import("std");
-const config = @import("config.zig");
 const Board = @import("Board.zig");
-const BoardSize = config.BoardSize;
-const Place = config.Place;
-const Move = config.Move;
+const BoardSize = Board.BoardSize;
+const Place = Board.Place;
+const Move = Board.Move;
 pub const Player = Board.Player;
 const Score = i64;
 
@@ -17,7 +16,7 @@ pub const empty_scores = blk: {
     var scores = Scores{
         .board = Board.empty_board,
     };
-    for (config.row_config_data) |row_config| {
+    for (Board.row_config_data) |row_config| {
         _ = scores.score_row(row_config, false);
     }
     break :blk scores;
@@ -44,17 +43,17 @@ inline fn inc(self: *Scores, place: Place, value: Score) void {
 
 pub inline fn make_move(scores: *Scores, move: Move) bool {
     inline for (move) |place| {
-        inline for (config.raw_indices(place)) |idx| {
-            _ = scores.score_row(config.row_config(idx), true);
+        inline for (raw_indices(place)) |idx| {
+            _ = scores.score_row(Board.row_config(idx), true);
             scores.board.set_place(place, scores.turn);
-            if (scores.score_row(config.row_config(idx), false)) return true;
+            if (scores.score_row(Board.row_config(idx), false)) return true;
         }
     }
     scores.turn = if (scores.turn == .first) .second else .first;
     return false;
 }
 
-fn score_row(scores: *Scores, row_config: config.RowConfig, comptime clear: bool) bool {
+fn score_row(scores: *Scores, row_config: Board.RowConfig, comptime clear: bool) bool {
     if (row_config.count == 0) return false;
 
     var x = row_config.x;
@@ -102,3 +101,65 @@ fn print(self: Scores) void {
         std.debug.print("\n", .{});
     }
 }
+
+pub const RowIndices = [BoardSize][BoardSize][4]usize;
+
+pub inline fn raw_indices(place: Place) [4]isize {
+    return raw_indices_data[@intCast(place.x)][@intCast(place.y)];
+}
+
+const raw_indices_data = blk: {
+    // @setEvalBranchQuota(2000);
+    var row_inds = [_][BoardSize][4]isize{[_][4]isize{[_]isize{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
+
+    var row_idx: usize = 1;
+    for (0..BoardSize) |i| {
+        for (0..BoardSize) |j| {
+            row_inds[j][i][0] = row_idx;
+        }
+
+        row_idx += 1;
+    }
+
+    for (0..BoardSize) |i| {
+        for (0..BoardSize) |j| {
+            row_inds[i][j][1] = row_idx;
+        }
+
+        row_idx += 1;
+    }
+
+    for (5..BoardSize) |i| {
+        for (0..i + 1) |j| {
+            row_inds[j][i - j][2] = row_idx;
+        }
+
+        row_idx += 1;
+    }
+
+    for (1..BoardSize - 5) |i| {
+        for (i..BoardSize) |j| {
+            row_inds[j][BoardSize - 1 + i - j][2] = row_idx;
+        }
+
+        row_idx += 1;
+    }
+
+    for (5..BoardSize) |i| {
+        for (0..i + 1) |j| {
+            row_inds[BoardSize - 1 - i + j][j][3] = row_idx;
+        }
+
+        row_idx += 1;
+    }
+
+    for (1..BoardSize - 5) |i| {
+        for (0..BoardSize - i) |j| {
+            row_inds[j][i + j][3] = row_idx;
+        }
+
+        row_idx += 1;
+    }
+
+    break :blk row_inds;
+};

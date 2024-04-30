@@ -1,13 +1,14 @@
 const Board = @This();
 const std = @import("std");
-const config = @import("config.zig");
-const BoardSize = config.BoardSize;
-const Place = config.Place;
+pub const BoardSize = 7;
+pub const Place = struct { x: isize, y: isize };
+pub const Move = [2]Place;
 pub const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
+pub const RowConfig = struct { x: isize, y: isize, dx: isize, dy: isize, count: isize };
 
 places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
 
-pub fn set_place(board: *Board, place: Place, player: Player) void {
+pub inline fn set_place(board: *Board, place: Place, player: Player) void {
     board.places[@intCast(place.x)][@intCast(place.y)] = player;
 }
 
@@ -95,3 +96,47 @@ fn print(self: Board) void {
         std.debug.print("\n", .{});
     }
 }
+
+const row_count: usize = 6 * BoardSize - 21;
+
+pub fn row_config(idx: isize) RowConfig {
+    return row_config_data[@intCast(idx)];
+}
+
+pub const row_config_data = blk: {
+    // @setEvalBranchQuota(2000);
+    var row_cfg = [_]RowConfig{.{ .x = 0, .y = 0, .dx = 0, .dy = 0, .count = 0 }} ** row_count;
+
+    var row_idx: usize = 1;
+    for (0..BoardSize) |i| {
+        row_cfg[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = 0, .count = BoardSize - 5 };
+        row_idx += 1;
+    }
+
+    for (0..BoardSize) |i| {
+        row_cfg[row_idx] = RowConfig{ .x = @intCast(i), .y = 0, .dx = 0, .dy = 1, .count = BoardSize - 5 };
+        row_idx += 1;
+    }
+
+    for (5..BoardSize) |i| {
+        row_cfg[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = -1, .count = @intCast(i - 4) };
+        row_idx += 1;
+    }
+
+    for (1..BoardSize - 5) |i| {
+        row_cfg[row_idx] = RowConfig{ .x = @intCast(i), .y = BoardSize - 1, .dx = 1, .dy = -1, .count = @intCast(BoardSize - 5 - i) };
+        row_idx += 1;
+    }
+
+    for (5..BoardSize) |i| {
+        row_cfg[row_idx] = RowConfig{ .x = @intCast(BoardSize - 1 - i), .y = 0, .dx = 1, .dy = 1, .count = @intCast(i - 4) };
+        row_idx += 1;
+    }
+
+    for (1..BoardSize - 5) |i| {
+        row_cfg[row_idx] = RowConfig{ .x = 0, .y = @intCast(i), .dx = 1, .dy = 1, .count = @intCast(BoardSize - 5 - i) };
+        row_idx += 1;
+    }
+
+    break :blk row_cfg;
+};
