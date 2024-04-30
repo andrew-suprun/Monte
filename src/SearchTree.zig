@@ -5,7 +5,7 @@ const Scores = @import("Scores.zig");
 const math = std.math;
 const Pool = std.heap.MemoryPool(Node);
 const BoardSize = config.BoardSize;
-const Player = config.Player;
+const Player = Scores.Player;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 

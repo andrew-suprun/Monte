@@ -3,12 +3,12 @@ const std = @import("std");
 const config = @import("config.zig");
 const BoardSize = config.BoardSize;
 const Place = config.Place;
-const Player = config.Player;
+pub const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 
 places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
 
-pub fn set_place(board: Board, place: Place, player: Player) void {
-    board.places[place.x][place.y] = player;
+pub fn set_place(board: *Board, place: Place, player: Player) void {
+    board.places[@intCast(place.x)][@intCast(place.y)] = player;
 }
 
 pub const empty_board = blk: {

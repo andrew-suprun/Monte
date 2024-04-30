@@ -5,7 +5,7 @@ const Board = @import("Board.zig");
 const BoardSize = config.BoardSize;
 const Place = config.Place;
 const Move = config.Move;
-const Player = config.Player;
+pub const Player = Board.Player;
 const Score = i64;
 
 const RolloutResult = union(enum) {
@@ -17,7 +17,7 @@ pub const empty_scores = blk: {
     var scores = Scores{
         .board = Board.empty_board,
     };
-    for (config.row_config) |row_config| {
+    for (config.row_config_data) |row_config| {
         _ = scores.score_row(row_config, false);
     }
     break :blk scores;
@@ -45,9 +45,9 @@ inline fn inc(self: *Scores, place: Place, value: Score) void {
 pub inline fn make_move(scores: *Scores, move: Move) bool {
     inline for (move) |place| {
         inline for (config.raw_indices(place)) |idx| {
-            _ = scores.score_row(config.row_config[idx], true);
+            _ = scores.score_row(config.row_config(idx), true);
             scores.board.set_place(place, scores.turn);
-            if (scores.score_row(config.row_config[idx], false)) return true;
+            if (scores.score_row(config.row_config(idx), false)) return true;
         }
     }
     scores.turn = if (scores.turn == .first) .second else .first;

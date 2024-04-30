@@ -3,11 +3,14 @@ pub const Place = struct { x: isize, y: isize };
 pub const Move = [2]Place;
 pub const RowIndices = [BoardSize][BoardSize][4]usize;
 pub const RowConfig = struct { x: isize, y: isize, dx: isize, dy: isize, count: isize };
-pub const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 
 const row_count: usize = 6 * BoardSize - 21;
 
-pub const row_config = blk: {
+pub fn row_config(idx: isize) RowConfig {
+    return row_config_data[@intCast(idx)];
+}
+
+pub const row_config_data = blk: {
     // @setEvalBranchQuota(2000);
     var row_cfg = [_]RowConfig{.{ .x = 0, .y = 0, .dx = 0, .dy = 0, .count = 0 }} ** row_count;
 
