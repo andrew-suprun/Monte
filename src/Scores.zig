@@ -16,15 +16,15 @@ const RolloutResult = union(enum) {
     nonterminal: Player,
 };
 
-pub const empty_scores = blk: {
+pub fn init() Scores {
     var scores = Scores{
         .board = Board.empty_board,
     };
     for (Board.row_config_data) |row_config| {
         _ = scores.score_row(row_config, false);
     }
-    break :blk scores;
-};
+    return scores;
+}
 
 pub fn clone(self: Scores) Scores {
     return Scores{
@@ -75,10 +75,12 @@ fn score_row(scores: *Scores, row_config: Board.RowConfig, comptime clear: bool)
         if (v >= 32768) return true;
         const value = if (clear) -v else v;
 
-        inline for (0..6) |d| {
-            const dd: isize = @intCast(d);
-            scores.inc(.{ .x = x + dd * dx, .y = y + dd * dy }, value);
-        }
+        scores.inc(.{ .x = x, .y = y }, value);
+        scores.inc(.{ .x = x + dx, .y = y + dy }, value);
+        scores.inc(.{ .x = x + 2 * dx, .y = y + 2 * dy }, value);
+        scores.inc(.{ .x = x + 3 * dx, .y = y + 3 * dy }, value);
+        scores.inc(.{ .x = x + 4 * dx, .y = y + 4 * dy }, value);
+        scores.inc(.{ .x = x + 5 * dx, .y = y + 5 * dy }, value);
         i += 1;
         if (i == row_config.count) {
             break;
@@ -107,6 +109,7 @@ pub inline fn raw_indices(place: Place) [4]isize {
 }
 
 const raw_indices_data = blk: {
+    @setEvalBranchQuota(2000);
     var row_inds = [_][BoardSize][4]isize{[_][4]isize{[_]isize{ 0, 0, 0, 0 }} ** BoardSize} ** BoardSize;
 
     var row_idx: usize = 1;

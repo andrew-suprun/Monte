@@ -2,7 +2,7 @@ allocator: Allocator,
 pool: Pool,
 capacity: usize,
 size: usize = 0,
-scores: Scores = Scores.empty_scores.clone(),
+scores: Scores,
 root: *Node,
 
 const SearchTree = @This();
@@ -38,6 +38,7 @@ pub fn init(allocator: Allocator, capacity: usize) SearchTree {
         .allocator = allocator,
         .pool = pool,
         .capacity = capacity,
+        .scores = Scores.init(),
         .root = root,
     };
 }

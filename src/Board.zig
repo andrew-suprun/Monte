@@ -1,9 +1,10 @@
 places: [BoardSize][BoardSize]Player = [1][BoardSize]Player{[1]Player{.none} ** BoardSize} ** BoardSize,
 
-const Board = @This();
 const std = @import("std");
 const print = std.debug.print;
-pub const BoardSize = 7;
+
+const Board = @This();
+pub const BoardSize = 19;
 pub const Place = struct { x: isize, y: isize };
 pub const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 pub const RowConfig = struct { x: isize, y: isize, dx: isize, dy: isize, count: isize };
