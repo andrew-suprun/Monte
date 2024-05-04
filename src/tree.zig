@@ -38,6 +38,11 @@ fn SearchTree(comptime Policy: type) type {
             };
         }
 
+        fn deinit(tree: *SearchTree(Policy)) void {
+            print("type {}\n", .{@TypeOf(tree.pool)});
+            tree.pool.deinit();
+        }
+
         pub fn expand(tree: *SearchTree(Policy)) !void {
             print("### 1\n", .{});
             const policy = Policy.init(tree.allocator);
@@ -125,5 +130,6 @@ const TestPolicy = struct {
 
 test SearchTree {
     var tree = SearchTree(TestPolicy).init(std.testing.allocator);
+    defer tree.deinit();
     try tree.expand();
 }
