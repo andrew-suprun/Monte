@@ -3,4 +3,4 @@ zig-out
 .DS_Store
 *.log
 explore.zig
-ols.json
+.build
