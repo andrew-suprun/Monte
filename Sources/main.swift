@@ -9,7 +9,7 @@ enum Player { case first, second }
 protocol MoveProtocol {
   var player: Player { get }
   var score: Float { get }
-  
+
   init(player: Player, score: Float)
 }
 
@@ -22,16 +22,24 @@ protocol GameProtocol: Default {
 }
 
 struct SearchTree<Game: GameProtocol> {
-  class Node {
-    var children = [Node]()
+  class Node: CustomStringConvertible {
     var move: Game.Move
-    
-    init() {
-      move = Game.Move(player: .second, score: 0)
+    var score: Float
+    var children = [Node]()
+    var nDescendants: Float
+
+    convenience init() {
+      self.init(move: Game.Move(player: .second, score: 0))
     }
 
     init(move: Game.Move) {
       self.move = move
+      self.score = move.score
+      nDescendants = 0
+    }
+  
+    var description: String {
+      return "\(move) node-score: \(score) children: \(children.count) descendants: \(nDescendants)"
     }
   }
 
@@ -39,42 +47,70 @@ struct SearchTree<Game: GameProtocol> {
 
   func extend() {
     var game = Game()
-    let leaf = selectLeaf(game: &game)
+    let path = selectPath(game: &game)
+    // print("\nselected path:")
+    // for node in path {
+    //   print(node)
+    // }
+    // print()
+    let leaf = path.last!
     let moves = game.extend()
+    assert(!moves.isEmpty)
+    let descendats = Float(moves.count)
     leaf.children = moves.map { Node(move: $0) }
-  }
 
-  func selectLeaf(game: inout Game) -> Node {
-    var node = root
-    var player = Player.first
+    for node in path {
+      node.nDescendants += descendats
+    }
 
-    while true {
-      if let child = selectChild(parent: node, player: player) {
-        node = child
-        game.make(move: node.move)
-        player = if player == .first { .second } else { .first }
+    for node in path.reversed() {
+      if node.move.player == .first {
+        if node.children.count > 1 {
+          node.score = node.children.min {$0.score < $1.score }!.score
+        } else {
+          node.score = node.children[0].score
+        } 
       } else {
-        return node
+        if node.children.count > 1 {
+          node.score = node.children.max {$0.score < $1.score }!.score
+        } else {
+          node.score = node.children[0].score
+        } 
       }
     }
   }
 
-  func selectChild(parent: Node, player: Player) -> Node? {
-    guard !parent.children.isEmpty else { return nil }
-    let dParentChildren = Float(parent.children.count)
+  func selectPath(game: inout Game) -> [Node] {
+    var node = root
+    var path = [Node]()
 
+    while true {
+      path.append(node)
+      if let child = selectChild(parent: node) {
+        node = child
+        game.make(move: node.move)
+      } else {
+        return path
+      }
+    }
+  }
+
+  func selectChild(parent: Node) -> Node? {
+    guard !parent.children.isEmpty else { return nil }
+    let parentDescendants = log(parent.nDescendants)
     var selectedChild = parent.children[0]
-    let dChildren = Float.init(selectedChild.children.count)
-    let dScore = selectedChild.move.score
-    var selectedScore = dScore + Game.exploreFactor * sqrt(dParentChildren / dChildren)
+    if selectedChild.children.isEmpty {
+      return selectedChild
+    }
+    var selectedScore = selectedChild.score + Game.exploreFactor * sqrt(parentDescendants / selectedChild.nDescendants)
 
     for child in parent.children.dropFirst() {
-      let dChildren = Float.init(selectedChild.children.count)
-      let dScore = selectedChild.move.score
-      let score = dScore + Game.exploreFactor * sqrt(dParentChildren / dChildren)
+      if child.children.isEmpty {
+        return child
+      }
+      let score = child.score + Game.exploreFactor * sqrt(parentDescendants / child.nDescendants)
 
-      if (player == .first && selectedScore < score) || (player == .second && selectedScore > score)
-      {
+      if (parent.move.player == .first && selectedScore < score) || (parent.move.player == .second && selectedScore > score) {
         selectedChild = child
         selectedScore = score
       }
@@ -90,7 +126,7 @@ struct SearchTree<Game: GameProtocol> {
     for _ in 0..<level {
       print("| ", terminator: "")
     }
-    print(node.move)
+    print(node)
     for child in node.children {
       debug(node: child, level: level + 1)
     }
@@ -111,8 +147,11 @@ struct TestGame: GameProtocol {
 
   func extend() -> [Move] {
     var moves = [TestMove]()
-    for _ in 1...5 {
-      let score = if currentPlayer == .first { Float(Int.random(in: 10...20)) } else { -Float(Int.random(in: 10...20)) }
+    for _ in 1...Int.random(in: 2...5) {
+      let score =
+        if currentPlayer == .first { Float(Int.random(in: 10...20)) } else {
+          -Float(Int.random(in: 10...20))
+        }
       moves.append(TestMove(player: currentPlayer, score: score))
     }
     return moves
@@ -133,13 +172,12 @@ struct TestMove: MoveProtocol, CustomStringConvertible {
   }
 
   var description: String {
-    return "#\(id): \(player) [\(score)]"
+    return "move-id: \(id): player: \(player) move-score: \(score)"
   }
 }
 
 var tree = SearchTree<TestGame>()
-tree.extend()
-tree.extend()
-tree.extend()
-tree.debug()
-
+for _ in 1...20 {
+  // tree.debug()
+  tree.extend()
+}
