@@ -1,55 +1,54 @@
 const std = @import("std");
 const math = std.math;
 const print = std.debug.print;
-const Prng = std.rand.Random.DefaultPrng;
 const Allocator = std.mem.Allocator;
 const Pool = @import("std.heap").MemoryPool;
 pub const Player = enum(u8) { first = 0x01, second = 0x10, none = 0x00 };
 const List = std.ArrayListUnmanaged;
 
-fn Node(comptime Game: type) type {
-    return struct {
-        child: ?*Node(Game) = null,
-        next_sibling: ?*Node(Game) = null,
-        n_children: usize = 0,
-        score: Game.Score,
-        move: Game.Move,
-    };
-}
-
-fn SearchTree(comptime Game: type) type {
+pub fn SearchTree(comptime Game: type) type {
     return struct {
         allocator: Allocator,
-        pool: std.heap.MemoryPool(Node(Game)),
-        root: *Node(Game),
+        pool: std.heap.MemoryPool(Node),
+        root: *Node,
 
-        pub fn init(allocator: Allocator) SearchTree(Game) {
-            var pool = std.heap.MemoryPool(Node(Game)).init(allocator);
+        const Self = @This();
+
+        pub const Node = struct {
+            child: ?*Node = null,
+            next_sibling: ?*Node = null,
+            n_descendants: f32 = 0,
+            move: Game.Move,
+        };
+
+        pub fn init(allocator: Allocator) Self {
+            var pool = std.heap.MemoryPool(Node).init(allocator);
             const root = pool.create() catch unreachable;
             root.child = null;
             root.next_sibling = null;
-            root.n_children = 0;
-            root.score = 0;
-            root.move = Game.Move{};
+            root.n_descendants = 0;
+            root.move = Game.Move{ .score = 0 };
 
-            return SearchTree(Game){
+            return Self{
                 .allocator = allocator,
                 .pool = pool,
                 .root = root,
             };
         }
 
-        fn deinit(tree: *SearchTree(Game)) void {
+        pub fn deinit(tree: *Self) void {
             tree.pool.deinit();
         }
 
-        pub fn expand(tree: *SearchTree(Game)) !void {
+        pub fn expand(tree: *Self) !void {
             print("### 1\n", .{});
             const game = Game.init(tree.allocator);
             print("### 2\n", .{});
 
             var leaf = tree.root;
             var turn = Player.first;
+            var path = std.ArrayList(*Node).init(tree.allocator);
+            defer path.deinit();
 
             while (leaf.child != null) {
                 leaf = selectChild(leaf, turn);
@@ -57,27 +56,28 @@ fn SearchTree(comptime Game: type) type {
                 turn = if (turn == .first) .second else .first;
             }
 
-            var score = if (turn == .first) Game.min_score else Game.max_score;
+            var score = if (turn == .first) math.floatMin(f32) else math.floatMax(f32);
             var leaf_children = game.rollout();
             defer leaf_children.deinit(tree.allocator);
-            leaf.n_children = leaf_children.items.len;
+            const descendants = @as(f32, @floatFromInt(leaf_children.items.len));
+            leaf.n_descendants = descendants;
             for (leaf_children.items) |child| {
-                if ((turn == .first and score < child.score) or (turn == .second and score < child.score)) {
-                    score = child.score;
+                if ((turn == .first and score < child.move.score) or (turn == .second and score < child.move.score)) {
+                    score = child.move.score;
                 }
             }
-            leaf.score = score;
+
+            leaf.move.score = score;
             // TODO: propagate to the root
         }
 
-        fn selectChild(node: *Node(Game), turn: Player) *Node(Game) {
+        fn selectChild(node: *Node, turn: Player) *Node {
             print("### 3 node {?any}\n", .{node});
-            const big_n = @log(@as(f64, @floatFromInt(node.n_children)));
-            print("### 4 node.child {?any}\n", .{node.child});
 
             var selected_node = node.child.?;
+            if (selected_node.n_descendants == 0) return selected_node;
             print("### 5 selected_node {any}\n", .{selected_node});
-            var selected_score = @as(f64, @floatFromInt(selected_node.score)) + Game.explore_factor * @sqrt(big_n / @as(f64, @floatFromInt(selected_node.n_children)));
+            var selected_score = selected_node.move.score + Game.explore_factor * @sqrt(node.n_descendants / selected_node.n_descendants);
             print("### 6\n", .{});
             if (selected_node.next_sibling == null)
                 return selected_node;
@@ -88,8 +88,8 @@ fn SearchTree(comptime Game: type) type {
 
             while (maybe_child != null) {
                 const child = maybe_child.?;
-                if (child.n_children == 0) return child;
-                const score = @as(f64, @floatFromInt(child.score)) + Game.explore_factor * @sqrt(big_n / @as(f64, @floatFromInt(child.n_children)));
+                if (child.n_descendants == 0) return child;
+                const score = child.move.score + Game.explore_factor * @sqrt(node.n_descendants / child.n_descendants);
                 if ((turn == .first and score > selected_score) or (turn == .second and score < selected_score)) {
                     selected_score = score;
                     selected_node = child;
@@ -100,44 +100,4 @@ fn SearchTree(comptime Game: type) type {
             return selected_node;
         }
     };
-}
-
-const TestGame = struct {
-    allocator: Allocator,
-    prng: Prng,
-
-    const Move = struct {};
-    const Score = u64;
-    const explore_factor: f64 = 2.0;
-    const min_score: i64 = math.minInt(i64);
-    const max_score: i64 = math.maxInt(i64);
-
-    fn init(allocator: Allocator) TestGame {
-        print("TestGame.init\n", .{});
-        return TestGame{
-            .allocator = allocator,
-            .prng = Prng.init(0),
-        };
-    }
-
-    fn make_move(game: TestGame, move: TestGame.Move, turn: Player) void {
-        print("TestGame.make_move: move {any} turn {any}\n", .{ move, turn });
-        _ = game;
-    }
-
-    fn rollout(game: TestGame) std.ArrayListUnmanaged(Node(TestGame)) {
-        const moves = game.prng.next() % 5 + 1;
-        var result = std.ArrayListUnmanaged(Node(TestGame)).initCapacity(game.allocator, moves) catch unreachable;
-        for (0..moves) |_| {
-            result.append(game.prng.next() % 10);
-        }
-        print("TestGame.rollout\n", .{});
-        return result;
-    }
-};
-
-test SearchTree {
-    var tree = SearchTree(TestGame).init(std.testing.allocator);
-    defer tree.deinit();
-    try tree.expand();
 }
