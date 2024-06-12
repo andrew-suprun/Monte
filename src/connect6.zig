@@ -69,24 +69,76 @@ pub fn C6(comptime Player: type, comptime BoardSize: usize) type {
             }
 
             for (0..BoardSize) |a| {
-                var eStones: u32 = 0;
-                var sStones: u32 = 0;
-                for (0..5) |c| {
-                    eStones += @intFromEnum(board[a][c]);
-                    sStones += @intFromEnum(board[c][a]);
+                var hStones: u32 = 0;
+                var vStones: u32 = 0;
+                for (0..5) |b| {
+                    hStones += @intFromEnum(board[a][b]);
+                    vStones += @intFromEnum(board[b][a]);
                 }
                 for (0..BoardSize - 5) |b| {
-                    eStones += @intFromEnum(board[a][b + 5]);
-                    sStones += @intFromEnum(board[b + 5][a]);
-                    const eScore = calc_score(eStones);
-                    const sScore = calc_score(sStones);
+                    hStones += @intFromEnum(board[a][b + 5]);
+                    vStones += @intFromEnum(board[b + 5][a]);
+                    const eScore = calc_score(hStones);
+                    const sScore = calc_score(vStones);
                     for (0..6) |c| {
                         scores[a][b + c] += eScore;
                         scores[b + c][a] += sScore;
                     }
-                    eStones -= @intFromEnum(board[a][b]);
-                    sStones -= @intFromEnum(board[b][a]);
+                    hStones -= @intFromEnum(board[a][b]);
+                    vStones -= @intFromEnum(board[b][a]);
                 }
+            }
+
+            for (1..BoardSize - 5) |a| {
+                var swStones: u32 = 0;
+                var neStones: u32 = 0;
+                var nwStones: u32 = 0;
+                var seStones: u32 = 0;
+                for (0..5) |b| {
+                    swStones += @intFromEnum(board[a + b][b]);
+                    neStones += @intFromEnum(board[b][a + b]);
+                    nwStones += @intFromEnum(board[BoardSize - 1 - a - b][b]);
+                    seStones += @intFromEnum(board[a + b][BoardSize - 1 - b]);
+                }
+
+                for (0..BoardSize - 5 - a) |b| {
+                    swStones += @intFromEnum(board[a + b + 5][b + 5]);
+                    neStones += @intFromEnum(board[b + 5][a + b + 5]);
+                    nwStones += @intFromEnum(board[BoardSize - a - b - 6][b + 5]);
+                    seStones += @intFromEnum(board[a + b + 5][BoardSize - 6 - b]);
+                    const swScore = calc_score(swStones);
+                    const neScore = calc_score(neStones);
+                    const nwScore = calc_score(nwStones);
+                    const seScore = calc_score(seStones);
+                    for (0..6) |c| {
+                        scores[a + b + c][b + c] += swScore;
+                        scores[b + c][a + b + c] += neScore;
+                        scores[BoardSize - 1 - a - b - c][b + c] += nwScore;
+                        scores[a + b + c][BoardSize - 1 - b - c] += seScore;
+                    }
+                    swStones -= @intFromEnum(board[a][b]);
+                    neStones -= @intFromEnum(board[a][b]);
+                    nwStones -= @intFromEnum(board[BoardSize - 1 - a - b][b]);
+                    seStones -= @intFromEnum(board[a + b][BoardSize - 1 - b]);
+                }
+            }
+            var nwseStones: u32 = 0;
+            var neswStones: u32 = 0;
+            for (0..5) |a| {
+                nwseStones += @intFromEnum(board[a][a]);
+                neswStones += @intFromEnum(board[a][BoardSize - 1 - a]);
+            }
+            for (0..BoardSize - 5) |b| {
+                nwseStones += @intFromEnum(board[b + 5][b + 5]);
+                neswStones += @intFromEnum(board[b + 5][BoardSize - 6 - b]);
+                const nwseScore = calc_score(nwseStones);
+                const neswScore = calc_score(neswStones);
+                for (0..6) |c| {
+                    scores[b + c][b + c] += nwseScore;
+                    scores[b + c][BoardSize - 1 - b - c] += neswScore;
+                }
+                nwseStones -= @intFromEnum(board[b][b]);
+                neswStones -= @intFromEnum(board[b][BoardSize - 1 - b]);
             }
         }
 
@@ -114,9 +166,13 @@ test "init C6" {
     Game.calc_scores(c6.board, &c6.scores);
 
     print("\n", .{});
-    for (c6.scores) |row| {
-        for (row) |score| {
-            print("{:3}", .{score});
+    for (c6.scores, 0..) |row, y| {
+        for (row, 0..) |score, x| {
+            switch (c6.board[y][x]) {
+                .black => print("  X", .{}),
+                .white => print("  O", .{}),
+                else => print("{:3}", .{score}),
+            }
         }
         print("\n", .{});
     }
