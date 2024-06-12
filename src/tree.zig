@@ -12,51 +12,32 @@ pub fn SearchTree(comptime Game: type) type {
 
         pub const Player = enum { none, first, second };
 
-        pub const ChildNode = struct {
-            move: Game.Move,
-            node: Node,
-
-            pub fn init(self: *ChildNode, move: Game.Move, rollout_winner: Player, terminal: bool) Node {
-                self.move = move;
-                if (rollout_winner == .first) {
-                    self.node.first_wins = 1;
-                    self.node.second_wins = 0;
-                } else if (rollout_winner == .second) {
-                    self.node.first_wins = 0;
-                    self.node.second_wins = 1;
-                }
-                self.node.total_rollouts = 1;
-                self.node.children = []Node{};
-                self.node.move_terminal = terminal;
-                self.node.node_complete = false;
-            }
-        };
-
         pub const Node = struct {
+            child_moves: []Game.Move,
+            child_nodes: []Node,
             first_wins: i32,
             second_wins: i32,
-            node_rollouts: i32,
-            children: ?[]ChildNode,
+            n_rollouts: i32,
             move_terminal: bool,
             node_complete: bool,
 
             pub fn deinit(self: *Node, allocator: Allocator) void {
-                if (self.children) |children| {
-                    for (children) |*child| {
-                        child.node.deinit(allocator);
-                    }
-                    allocator.free(self.children.?);
+                for (self.child_nodes) |*child| {
+                    child.deinit(allocator);
                 }
+                allocator.free(self.child_moves);
+                allocator.free(self.child_nodes);
             }
         };
 
         pub fn init() Self {
             return Self{
                 .root = Node{
+                    .child_moves = &[_]Game.Move{},
+                    .child_nodes = &[_]Node{},
                     .first_wins = 0,
                     .second_wins = 0,
-                    .node_rollouts = 0,
-                    .children = null,
+                    .n_rollouts = 0,
                     .move_terminal = false,
                     .node_complete = false,
                 },
@@ -70,17 +51,22 @@ pub fn SearchTree(comptime Game: type) type {
         pub fn expand(tree: *Self, allocator: Allocator) !void {
             var game = Game.init();
 
-            var node = &tree.root;
-            var path = std.ArrayList(*Node).init(allocator);
+            var path = std.ArrayList(Game.Move).init(allocator);
             defer path.deinit();
 
-            while (node.children != null) {
-                var child_node = selectChild(game, node);
-                game.make_move(child_node.move);
-                node = &child_node.node;
+            var node = &tree.root;
+            while (node.child_nodes.len != 0) {
+                const child = selectChild(game, node);
+                game.make_move(child.move);
+                node = child.node;
+                path.append(child.move) catch unreachable;
             }
 
-            game.expand(allocator);
+            game.possible_moves(Expander{ .node = node });
+
+            // game.expand(allocator);
+
+            // const n_children = node.child_nodes.?.len;
 
             // TODO: backpropagation
 
@@ -97,38 +83,51 @@ pub fn SearchTree(comptime Game: type) type {
             // node.score = best_child_score;
         }
 
-        fn selectChild(game: Game, parent: *Node) *ChildNode {
-            var selected_child = &parent.children.?[0];
-            if (selected_child.node.children == null) return selected_child;
+        fn selectChild(game: Game, parent: *Node) struct { move: Game.Move, node: *Node } {
+            var selected_child = &parent.child_nodes[0];
+            var selected_move = parent.child_moves[0];
+            if (!selected_child.node_complete and selected_child.child_moves.len == 0)
+                return .{ .move = selected_move, .node = selected_child };
 
-            const parent_roolouts: f32 = @floatFromInt(parent.node_rollouts);
-            const big_n = @log(parent_roolouts);
+            const parent_rollouts: f32 = @floatFromInt(parent.n_rollouts);
+            const big_n = @log(parent_rollouts);
 
-            const child_rollouts: f32 = @floatFromInt(selected_child.node.node_rollouts);
-            var score = calc_score(game, &selected_child.node);
-            var selected_score = score / parent_roolouts + Game.explore_factor * @sqrt(big_n / child_rollouts);
+            const child_rollouts: f32 = @floatFromInt(selected_child.n_rollouts);
+            var score = calc_score(game, selected_child);
+            var selected_score = score / parent_rollouts + Game.explore_factor * @sqrt(big_n / child_rollouts);
 
-            for (parent.children.?[1..]) |*child| {
-                if (child.node.children == null) return child;
+            for (parent.child_moves[1..], parent.child_nodes[1..]) |move, *child| {
+                if (child.node_complete) continue;
+                if (child.child_moves.len == 0)
+                    return .{ .move = move, .node = child };
 
-                score = calc_score(game, &child.node);
+                score = calc_score(game, child);
 
-                if ((game.turn == .first and score > selected_score) or
-                    (game.turn == .second and score < selected_score))
-                {
+                if (score > selected_score) {
                     print("### selectChild.3: selected_node {any}; score {}\n", .{ selected_child, selected_score });
                     selected_score = score;
+                    selected_move = move;
                     selected_child = child;
                 }
             }
 
-            return selected_child;
+            return .{ .move = selected_move, .node = selected_child };
         }
+
         inline fn calc_score(game: Game, node: *Node) f32 {
             return if (game.turn == .first)
-                @as(f32, @floatFromInt(node.node_rollouts + node.first_wins - node.second_wins))
+                @as(f32, @floatFromInt(node.n_rollouts + node.first_wins - node.second_wins))
             else
-                @as(f32, @floatFromInt(node.node_rollouts + node.second_wins - node.first_wins));
+                @as(f32, @floatFromInt(node.n_rollouts + node.second_wins - node.first_wins));
         }
+
+        const Expander = struct {
+            node: *Node,
+
+            pub fn next(self: Expander, move: ?Game.Move) void {
+                _ = self;
+                print("move {any}\n", .{move});
+            }
+        };
     };
 }
