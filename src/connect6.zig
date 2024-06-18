@@ -6,14 +6,14 @@ const Place = struct {
     y: u8,
 };
 
-const Move = [2]Place;
+pub const Move = [2]Place;
 
 const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
-pub fn C6(comptime Player: type, comptime BoardSize: usize) type {
-    _ = Player;
+pub fn C6(Player: type, comptime BoardSize: usize) type {
     const Board = [BoardSize][BoardSize]Stone;
     const Scores = [BoardSize][BoardSize]i32;
+
     return struct {
         board: Board,
         scores: Scores,
@@ -35,6 +35,11 @@ pub fn C6(comptime Player: type, comptime BoardSize: usize) type {
 
         fn place_stone(self: *Self, place: Place, stone: Stone) ?Stone {
             print("place_stone: place={any} stone={any}\n", .{ place, stone });
+            defer {
+                self.test_scores();
+                self.print_scores(self.scores, "Scores");
+                print("----\n", .{});
+            }
             const x = place.x;
             const y = place.y;
             {
@@ -114,7 +119,7 @@ pub fn C6(comptime Player: type, comptime BoardSize: usize) type {
                     stones += @intFromEnum(self.board[start_y + i][start_x - i]);
                 }
                 for (0..count) |c| {
-                    stones += @intFromEnum(self.board[start_y + 5][start_x - 5]);
+                    stones += @intFromEnum(self.board[start_y + 5 + c][start_x - 5 - c]);
                     const d = calc_delta(stones, stone);
                     if (d.winner != .none) return d.winner;
                     for (0..6) |e| {
@@ -125,7 +130,39 @@ pub fn C6(comptime Player: type, comptime BoardSize: usize) type {
             }
 
             self.board[y][x] = stone;
+            return null;
+        }
+
+        pub fn rollout(self: Self, move: Move, player: Player) Player {
+            var game = self;
+
+            var stone: Stone = if (player == .first) .black else .white;
+            if (game.place_stone(move[0], stone)) |winner| return player_from_stone(winner);
+            if (game.place_stone(move[1], stone)) |winner| return player_from_stone(winner);
+            game.print_scores(game.scores, "Rollout");
+            game.test_scores();
+            while (true) {
+                stone = if (stone == .black) .white else .black;
+                if (game.place_stone(game.rollout_place(), stone)) |winner| return player_from_stone(winner);
+                break;
+            }
             return .none;
+        }
+
+        fn rollout_place(self: Self) Place {
+            var best_places = [2]Place{ .{ .x = 0, .y = 0 }, .{ .x = 0, .y = 0 } };
+            print("{any}\n", .{best_places});
+            _ = self;
+            best_places[0] = .{ .x = 0, .y = 0 };
+            return best_places[0];
+        }
+
+        inline fn player_from_stone(stone: Stone) Player {
+            return switch (stone) {
+                .black => .first,
+                .white => .second,
+                .none => .none,
+            };
         }
 
         fn calc_scores(board: Board, scores: *Scores) void {
@@ -294,14 +331,14 @@ pub fn C6(comptime Player: type, comptime BoardSize: usize) type {
 
 const RowConfig = struct { x: usize, y: usize, count: usize };
 
-const TestPlayer = enum { first, second };
+const TestPlayer = enum { first, second, none };
 
 test "calc_scores" {
     print("\n", .{});
     const Game = C6(TestPlayer, 19);
     var c6 = Game.init();
     c6.test_scores();
-    _ = c6.place_stone(Place{ .x = 8, .y = 9 }, .white);
+    _ = c6.rollout(Move{ .{ .x = 8, .y = 9 }, .{ .x = 9, .y = 8 } }, .second);
     c6.print_scores(c6.scores, "Final");
     c6.test_scores();
 }
