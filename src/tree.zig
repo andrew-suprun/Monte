@@ -62,7 +62,8 @@ pub fn SearchTree(comptime Game: type) type {
                 path.append(child.move) catch unreachable;
             }
 
-            game.possible_moves(Expander{ .node = node });
+            const moves = game.possible_moves();
+            _ = moves;
 
             // game.expand(allocator);
 
@@ -115,7 +116,7 @@ pub fn SearchTree(comptime Game: type) type {
         }
 
         inline fn calc_score(game: Game, node: *Node) f32 {
-            return if (game.turn == .first)
+            return if (game.turn() == .first)
                 @as(f32, @floatFromInt(node.n_rollouts + node.first_wins - node.second_wins))
             else
                 @as(f32, @floatFromInt(node.n_rollouts + node.second_wins - node.first_wins));

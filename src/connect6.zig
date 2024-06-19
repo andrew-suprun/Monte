@@ -1,13 +1,12 @@
 const std = @import("std");
 const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
+const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const Place = struct {
     x: u8,
     y: u8,
 };
-
-pub const Move = [2]Place;
 
 const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
@@ -21,6 +20,15 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
         last_played: Stone,
 
         const Self = @This();
+        pub const Move = [2]Place;
+        pub const explore_factor: f32 = 2;
+        const Heap = std.PriorityDequeue(Place, *Scores, cmp);
+
+        fn cmp(scores: *Scores, a: Place, b: Place) std.math.Order {
+            const a_score = scores[a.y][a.x];
+            const b_score = scores[b.y][b.x];
+            return if (a_score < b_score) .lt else if (a_score > b_score) .gt else .eq;
+        }
 
         pub fn init() Self {
             var self = Self{
@@ -34,16 +42,39 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             return self;
         }
 
+        pub fn make_move(self: *Self, move: Move) void {
+            self.last_played = if (self.last_played == .black) .white else .black;
+            _ = self.place_stone(move[0], self.last_played);
+            _ = self.place_stone(move[1], self.last_played);
+        }
+
+        pub fn possible_moves(self: *Self) []Move {
+            var buf: [400]u8 = undefined;
+            var fsa = std.heap.FixedBufferAllocator.init(&buf);
+            var queue = Heap.init(fsa.allocator(), &self.scores);
+            queue.add(.{ .x = 0, .y = 0 }) catch unreachable;
+            return &[_]Move{};
+        }
+
+        pub fn turn(self: Self) Player {
+            return switch (self.last_played) {
+                .black => .second,
+                .white => .first,
+                .none => std.debug.panic("impossible last player", .{}),
+            };
+        }
+
         fn place_stone(self: *Self, place: Place, stone: Stone) ?Stone {
             const x = place.x;
             const y = place.y;
             var check_scores = true;
-            print("place {s} at {}:{} score={}\n", .{ str_from_stone(stone), x, y, self.scores[y][x] });
-            defer {
-                self.board[y][x] = stone;
-                if (check_scores) self.test_scores();
-                self.print_board();
-                print("\n\n", .{});
+            if (debug) {
+                print("place {s} at {}:{} score={}\n", .{ str_from_stone(stone), x, y, self.scores[y][x] });
+                defer {
+                    if (check_scores) self.test_scores();
+                    self.print_board();
+                    print("\n\n", .{});
+                }
             }
             {
                 const start_x: usize = @max(x, 5) - 5;
@@ -144,6 +175,7 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 }
             }
 
+            self.board[y][x] = stone;
             return null;
         }
 
@@ -186,7 +218,7 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                     }
                 }
             }
-            if (best_score < 10) return null;
+            if (best_score < 32) return null;
             return best_place;
         }
 
@@ -282,11 +314,11 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
         fn calc_score(stones: i32) i32 {
             return switch (stones) {
                 0x00 => 1,
-                0x01, 0x10 => 2,
-                0x02, 0x20 => 4,
-                0x03, 0x30 => 8,
-                0x04, 0x40 => 16,
-                0x05, 0x50 => 32,
+                0x01, 0x10 => 4,
+                0x02, 0x20 => 16,
+                0x03, 0x30 => 64,
+                0x04, 0x40 => 256,
+                0x05, 0x50 => 1024,
                 else => 0,
             };
         }
@@ -294,32 +326,32 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
         fn calc_delta(stones: i32, stone: Stone) struct { score: i32, winner: Stone } {
             if (stone == .black) {
                 const score: i32 = switch (stones) {
-                    0x00 => 1,
-                    0x01 => 2,
-                    0x02 => 4,
-                    0x03 => 8,
-                    0x04 => 16,
+                    0x00 => 3,
+                    0x01 => 12,
+                    0x02 => 48,
+                    0x03 => 192,
+                    0x04 => 768,
                     0x05 => return .{ .score = 0, .winner = .black },
-                    0x10 => -2,
-                    0x20 => -4,
-                    0x30 => -8,
-                    0x40 => -16,
-                    0x50 => -32,
+                    0x10 => -4,
+                    0x20 => -16,
+                    0x30 => -64,
+                    0x40 => -256,
+                    0x50 => -1024,
                     else => 0,
                 };
                 return .{ .score = score, .winner = .none };
             } else {
                 const score: i32 = switch (stones) {
-                    0x00 => 1,
-                    0x01 => -2,
-                    0x02 => -4,
-                    0x03 => -8,
-                    0x04 => -16,
-                    0x05 => -32,
-                    0x10 => 2,
-                    0x20 => 4,
-                    0x30 => 8,
-                    0x40 => 16,
+                    0x00 => 3,
+                    0x01 => -4,
+                    0x02 => -16,
+                    0x03 => -64,
+                    0x04 => -256,
+                    0x05 => -1024,
+                    0x10 => 12,
+                    0x20 => 48,
+                    0x30 => 192,
+                    0x40 => 768,
                     0x50 => return .{ .score = 0, .winner = .white },
                     else => 0,
                 };
@@ -403,6 +435,6 @@ test "calc_scores" {
     print("\n", .{});
     const Game = C6(TestPlayer, 19);
     var c6 = Game.init();
-    const result = c6.rollout(.{ .{ .x = 8, .y = 9 }, .{ .x = 9, .y = 8 } }, .second);
+    const result = c6.rollout(.{ .{ .x = 10, .y = 11 }, .{ .x = 8, .y = 7 } }, .second);
     print("rollout result {any}\n", .{result});
 }
