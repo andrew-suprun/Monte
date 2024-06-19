@@ -35,14 +35,16 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
         }
 
         fn place_stone(self: *Self, place: Place, stone: Stone) ?Stone {
-            print("place {s} at {}:{} score={}\n", .{ str_from_stone(stone), place.x, place.y, self.scores[place.y][place.x] });
+            const x = place.x;
+            const y = place.y;
+            var check_scores = true;
+            print("place {s} at {}:{} score={}\n", .{ str_from_stone(stone), x, y, self.scores[y][x] });
             defer {
-                self.test_scores();
+                self.board[y][x] = stone;
+                if (check_scores) self.test_scores();
                 self.print_board();
                 print("\n\n", .{});
             }
-            const x = place.x;
-            const y = place.y;
             {
                 const start_x: usize = @max(x, 5) - 5;
                 const endX: usize = @min(x + 1, BoardSize - 5);
@@ -53,7 +55,10 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 for (start_x..endX) |dx| {
                     stones += @intFromEnum(self.board[y][dx + 5]);
                     const d = calc_delta(stones, stone);
-                    if (d.winner != .none) return d.winner;
+                    if (d.winner != .none) {
+                        check_scores = false;
+                        return d.winner;
+                    }
                     for (0..6) |c| {
                         self.scores[y][dx + c] += d.score;
                     }
@@ -71,7 +76,10 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 for (start_y..endY) |dy| {
                     stones += @intFromEnum(self.board[dy + 5][x]);
                     const d = calc_delta(stones, stone);
-                    if (d.winner != .none) return d.winner;
+                    if (d.winner != .none) {
+                        check_scores = false;
+                        return d.winner;
+                    }
                     for (0..6) |c| {
                         self.scores[dy + c][x] += d.score;
                     }
@@ -96,7 +104,10 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 for (start_x.., start_y.., 0..count) |xx, yy, _| {
                     stones += @intFromEnum(self.board[yy + 5][xx + 5]);
                     const d = calc_delta(stones, stone);
-                    if (d.winner != .none) return d.winner;
+                    if (d.winner != .none) {
+                        check_scores = false;
+                        return d.winner;
+                    }
                     for (0..6) |e| {
                         self.scores[yy + e][xx + e] += d.score;
                     }
@@ -122,7 +133,10 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 for (0..count) |c| {
                     stones += @intFromEnum(self.board[start_y + 5 + c][start_x - 5 - c]);
                     const d = calc_delta(stones, stone);
-                    if (d.winner != .none) return d.winner;
+                    if (d.winner != .none) {
+                        check_scores = false;
+                        return d.winner;
+                    }
                     for (0..6) |e| {
                         self.scores[start_y + c + e][start_x - c - e] += d.score;
                     }
@@ -130,8 +144,6 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 }
             }
 
-            self.board[y][x] = stone;
-            if (self.scores[y][x] < 10) return .none;
             return null;
         }
 
@@ -144,14 +156,17 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             if (game.place_stone(move[1], stone)) |winner| return player_from_stone(winner);
             while (true) {
                 stone = if (stone == .black) .white else .black;
-                if (game.place_stone(game.rollout_place(&rand), stone)) |winner| return player_from_stone(winner);
-                if (game.place_stone(game.rollout_place(&rand), stone)) |winner| return player_from_stone(winner);
+                inline for (0..2) |_| {
+                    if (game.rollout_place(&rand)) |place| {
+                        if (game.place_stone(place, stone)) |winner| return player_from_stone(winner);
+                    } else {
+                        return .none;
+                    }
+                }
             }
-            print("rollout: DRAW\n");
-            return .none;
         }
 
-        fn rollout_place(self: Self, rand: *Prng) Place {
+        fn rollout_place(self: Self, rand: *Prng) ?Place {
             var best_place = Place{ .x = 0, .y = 0 };
             var best_score: i32 = 0;
             var prob: u64 = 2;
@@ -171,6 +186,7 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                     }
                 }
             }
+            if (best_score < 10) return null;
             return best_place;
         }
 
@@ -332,16 +348,21 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
 
         fn print_scores(self: Self, scores: Scores, prefix: []const u8) void {
             print("\n{s}\n", .{prefix});
+            print("\n   |   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 |", .{});
+            print("\n---+-----------------------------------------------------------------------------+---", .{});
             for (scores, 0..) |row, y| {
+                print("\n{:2} |", .{y});
                 for (row, 0..) |score, x| {
                     switch (self.board[y][x]) {
-                        .black => print("  X", .{}),
-                        .white => print("  O", .{}),
-                        else => if (score > 0) print("{:3}", .{@as(u32, @intCast(score))}) else print("  .", .{}),
+                        .black => print("   X", .{}),
+                        .white => print("   O", .{}),
+                        else => if (score > 0) print("{:4}", .{@as(u32, @intCast(score))}) else print("   .", .{}),
                     }
                 }
-                print("\n", .{});
+                print(" |", .{});
             }
+            print("\n---+-----------------------------------------------------------------------------+---", .{});
+            print("\n   |   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 |\n", .{});
         }
 
         fn print_board(self: Self) void {
@@ -382,5 +403,6 @@ test "calc_scores" {
     print("\n", .{});
     const Game = C6(TestPlayer, 19);
     var c6 = Game.init();
-    _ = c6.rollout(.{ .{ .x = 8, .y = 9 }, .{ .x = 9, .y = 8 } }, .second);
+    const result = c6.rollout(.{ .{ .x = 8, .y = 9 }, .{ .x = 9, .y = 8 } }, .second);
+    print("rollout result {any}\n", .{result});
 }
