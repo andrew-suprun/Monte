@@ -48,11 +48,29 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             _ = self.place_stone(move[1], self.last_played);
         }
 
-        pub fn possible_moves(self: *Self) []Move {
-            var buf: [400]u8 = undefined;
-            var fsa = std.heap.FixedBufferAllocator.init(&buf);
-            var queue = Heap.init(fsa.allocator(), &self.scores);
-            queue.add(.{ .x = 0, .y = 0 }) catch unreachable;
+        pub fn possible_moves(self: *Self, allocator: std.mem.Allocator) []Move {
+            const max_places = 60;
+            var heap = Heap.init(allocator, &self.scores);
+            defer heap.deinit();
+
+            var n_places: u64 = 0;
+            var places: [max_places]Place = undefined;
+            places[0] = .{ .x = 0, .y = 0 };
+
+            for (0..BoardSize) |y| {
+                for (0..BoardSize) |x| {
+                    if (self.board[y][x] == .none) {
+                        heap.add(.{ .x = @intCast(x), .y = @intCast(y) }) catch unreachable;
+                        n_places += 1;
+                    }
+                }
+            }
+            n_places = @min(max_places, n_places / 4);
+            var moves: []Move = allocator.alloc(Move, n_places * (n_places - 1) / 2);
+            for (0..n_places) |i| {
+                const place = heap.removeMax();
+                print("{} - {}:{} score={}\n", .{ i + 1, place.x, place.y, self.scores[place.y][place.x] });
+            }
             return &[_]Move{};
         }
 
@@ -437,4 +455,10 @@ test "calc_scores" {
     var c6 = Game.init();
     const result = c6.rollout(.{ .{ .x = 10, .y = 11 }, .{ .x = 8, .y = 7 } }, .second);
     print("rollout result {any}\n", .{result});
+}
+
+test "possible_moves" {
+    const Game = C6(TestPlayer, 19);
+    var c6 = Game.init();
+    _ = c6.possible_moves(std.testing.allocator);
 }
