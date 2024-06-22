@@ -57,12 +57,12 @@ pub fn SearchTree(comptime Game: type) type {
             var node = &tree.root;
             while (node.child_nodes.len != 0) {
                 const child = selectChild(game, node);
-                game.make_move(child.move);
+                _ = game.make_move(child.move);
                 node = child.node;
                 path.append(child.move) catch unreachable;
             }
 
-            const moves = game.possible_moves();
+            const moves = game.possible_moves(allocator);
             _ = moves;
 
             // game.expand(allocator);

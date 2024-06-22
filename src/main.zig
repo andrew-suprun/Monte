@@ -8,15 +8,15 @@ const tree = @import("tree.zig");
 
 const Player = enum { none, first, second };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+// pub fn main() !void {
+//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     const allocator = gpa.allocator();
 
-    var search_tree = tree.SearchTree(c6.C6(Player, 19)).init();
-    defer search_tree.deinit(allocator);
+//     var search_tree = tree.SearchTree(c6.C6(Player, 19)).init();
+//     defer search_tree.deinit(allocator);
 
-    try search_tree.expand(allocator);
-}
+//     try search_tree.expand(allocator);
+// }
 
 const Prng = std.rand.Random.DefaultPrng;
 
@@ -27,13 +27,8 @@ const Prng = std.rand.Random.DefaultPrng;
 //     var game = Game.init();
 //     var results: [3]u32 = .{ 0, 0, 0 };
 
-//     for (0..10000) |_| {
-//         const x1: u8 = @intCast(prng.next() % 9);
-//         const y1: u8 = @intCast(prng.next() % 9);
-//         const x2: u8 = @intCast(prng.next() % 9 + 10);
-//         const y2: u8 = @intCast(prng.next() % 9 + 10);
-
-//         const result = game.rollout(.{ .{ .x = x1, .y = y1 }, .{ .x = x2, .y = y2 } }, .second);
+//     for (0..100000) |_| {
+//         const result = game.rollout(.{ .x = @intCast(prng.next() % 9), .y = @intCast(prng.next() % 9) });
 //         switch (result) {
 //             .none => results[0] += 1,
 //             .first => results[1] += 1,
@@ -43,3 +38,20 @@ const Prng = std.rand.Random.DefaultPrng;
 
 //     print("rollout results draw: {} black: {} white: {}\n", .{ results[0], results[1], results[2] });
 // }
+
+pub fn main() !void {
+    var prng = Prng.init(0);
+
+    const Game = c6.C6(Player, 19);
+    var game = Game.init();
+    var results: [3]u32 = .{ 0, 0, 0 };
+
+    const result = game.rollout(.{ .x = @intCast(prng.next() % 9), .y = @intCast(prng.next() % 9) });
+    switch (result) {
+        .none => results[0] += 1,
+        .first => results[1] += 1,
+        .second => results[2] += 1,
+    }
+
+    print("rollout results draw: {} black: {} white: {}\n", .{ results[0], results[1], results[2] });
+}
