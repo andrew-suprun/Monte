@@ -5,9 +5,9 @@ const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
-pub fn C6(Player: type, comptime BoardSize: usize) type {
-    const Board = [BoardSize][BoardSize]Stone;
-    const Scores = [BoardSize][BoardSize]i32;
+pub fn C6(Player: type, comptime board_size: usize) type {
+    const Board = [board_size][board_size]Stone;
+    const Scores = [board_size][board_size]i32;
 
     return struct {
         board: Board,
@@ -30,12 +30,12 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
 
         pub fn init() Self {
             var self = Self{
-                .board = [1][BoardSize]Stone{[1]Stone{.none} ** BoardSize} ** BoardSize,
-                .scores = [1][BoardSize]i32{[1]i32{0} ** BoardSize} ** BoardSize,
+                .board = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
+                .scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size,
                 .move_number = 0,
             };
             calc_scores(self.board, &self.scores);
-            _ = self.place_stone(Move{ .x = BoardSize / 2, .y = BoardSize / 2 });
+            _ = self.place_stone(Move{ .x = board_size / 2, .y = board_size / 2 });
 
             return self;
         }
@@ -58,8 +58,8 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
 
             var n_places: u64 = 0;
 
-            for (0..BoardSize) |y| {
-                for (0..BoardSize) |x| {
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
                     if (self.board[y][x] == .none) {
                         heap.add(.{ .x = @intCast(x), .y = @intCast(y) }) catch unreachable;
                         n_places += 1;
@@ -93,19 +93,19 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             }
             {
                 const start_x: usize = @max(x, 5) - 5;
-                const endX: usize = @min(x + 1, BoardSize - 5);
+                const end_x: usize = @min(x + 1, board_size - 5);
                 var stones: i32 = @intFromEnum(self.board[y][start_x]);
                 for (1..5) |i| {
                     stones += @intFromEnum(self.board[y][start_x + i]);
                 }
-                for (start_x..endX) |dx| {
+                for (start_x..end_x) |dx| {
                     stones += @intFromEnum(self.board[y][dx + 5]);
                     const d = calc_delta(stones, stone);
                     if (d.winner != .none) {
                         check_scores = false;
                         return d.winner;
                     }
-                    for (0..6) |c| {
+                    inline for (0..6) |c| {
                         self.scores[y][dx + c] += d.score;
                     }
                     stones -= @intFromEnum(self.board[y][dx]);
@@ -114,19 +114,19 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
 
             {
                 const start_y: usize = @max(y, 5) - 5;
-                const endY: usize = @min(y + 1, BoardSize - 5);
+                const end_y: usize = @min(y + 1, board_size - 5);
                 var stones: i32 = @intFromEnum(self.board[start_y][x]);
                 for (1..5) |i| {
                     stones += @intFromEnum(self.board[start_y + i][x]);
                 }
-                for (start_y..endY) |dy| {
+                for (start_y..end_y) |dy| {
                     stones += @intFromEnum(self.board[dy + 5][x]);
                     const d = calc_delta(stones, stone);
                     if (d.winner != .none) {
                         check_scores = false;
                         return d.winner;
                     }
-                    for (0..6) |c| {
+                    inline for (0..6) |c| {
                         self.scores[dy + c][x] += d.score;
                     }
                     stones -= @intFromEnum(self.board[dy][x]);
@@ -137,11 +137,11 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 const min: usize = @min(x, y, 5);
                 const max: usize = @max(x, y);
 
-                if (max - min >= BoardSize - 5) break :b1;
+                if (max - min >= board_size - 5) break :b1;
 
                 const start_x = x - min;
                 const start_y = y - min;
-                const count = @min(min + 1, BoardSize - max, BoardSize - 5 + min - max);
+                const count = @min(min + 1, board_size - max, board_size - 5 + min - max);
 
                 var stones: i32 = @intFromEnum(self.board[start_y][start_x]);
                 for (1..5) |i| {
@@ -154,7 +154,7 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                         check_scores = false;
                         return d.winner;
                     }
-                    for (0..6) |e| {
+                    inline for (0..6) |e| {
                         self.scores[yy + e][xx + e] += d.score;
                     }
                     stones -= @intFromEnum(self.board[yy][xx]);
@@ -162,15 +162,15 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             }
 
             b2: {
-                const rev_x = BoardSize - 1 - x;
+                const rev_x = board_size - 1 - x;
                 const min: usize = @min(rev_x, y, 5);
                 const max: usize = @max(rev_x, y);
 
-                if (max - min >= BoardSize - 5) break :b2;
+                if (max - min >= board_size - 5) break :b2;
 
                 const start_x = x + min;
                 const start_y = y - min;
-                const count = @min(min + 1, BoardSize - max, BoardSize - 5 + min - max);
+                const count = @min(min + 1, board_size - max, board_size - 5 + min - max);
 
                 var stones: i32 = @intFromEnum(self.board[start_y][start_x]);
                 for (1..5) |i| {
@@ -183,7 +183,7 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                         check_scores = false;
                         return d.winner;
                     }
-                    for (0..6) |e| {
+                    inline for (0..6) |e| {
                         self.scores[start_y + c + e][start_x - c - e] += d.score;
                     }
                     stones -= @intFromEnum(self.board[start_y + c][start_x - c]);
@@ -219,8 +219,8 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             var best_move = Move{ .x = 0, .y = 0 };
             var best_score: i32 = 0;
             var prob: u64 = 2;
-            for (0..BoardSize) |y| {
-                for (0..BoardSize) |x| {
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
                     if (self.board[y][x] != .none) continue;
                     const score = self.scores[y][x];
                     if (score > best_score) {
@@ -254,19 +254,19 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 }
             }
 
-            for (0..BoardSize) |a| {
+            for (0..board_size) |a| {
                 var hStones: i32 = @intFromEnum(board[a][0]);
                 var vStones: i32 = @intFromEnum(board[0][a]);
                 for (1..5) |b| {
                     hStones += @intFromEnum(board[a][b]);
                     vStones += @intFromEnum(board[b][a]);
                 }
-                for (0..BoardSize - 5) |b| {
+                for (0..board_size - 5) |b| {
                     hStones += @intFromEnum(board[a][b + 5]);
                     vStones += @intFromEnum(board[b + 5][a]);
                     const eScore = calc_score(hStones);
                     const sScore = calc_score(vStones);
-                    for (0..6) |c| {
+                    inline for (0..6) |c| {
                         scores[a][b + c] += eScore;
                         scores[b + c][a] += sScore;
                     }
@@ -275,56 +275,56 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
                 }
             }
 
-            for (1..BoardSize - 5) |a| {
+            for (1..board_size - 5) |a| {
                 var swStones: i32 = @intFromEnum(board[a][0]);
                 var neStones: i32 = @intFromEnum(board[0][a]);
-                var nwStones: i32 = @intFromEnum(board[BoardSize - 1 - a][0]);
-                var seStones: i32 = @intFromEnum(board[a][BoardSize - 1]);
+                var nwStones: i32 = @intFromEnum(board[board_size - 1 - a][0]);
+                var seStones: i32 = @intFromEnum(board[a][board_size - 1]);
                 for (1..5) |b| {
                     swStones += @intFromEnum(board[a + b][b]);
                     neStones += @intFromEnum(board[b][a + b]);
-                    nwStones += @intFromEnum(board[BoardSize - 1 - a - b][b]);
-                    seStones += @intFromEnum(board[a + b][BoardSize - 1 - b]);
+                    nwStones += @intFromEnum(board[board_size - 1 - a - b][b]);
+                    seStones += @intFromEnum(board[a + b][board_size - 1 - b]);
                 }
 
-                for (0..BoardSize - 5 - a) |b| {
+                for (0..board_size - 5 - a) |b| {
                     swStones += @intFromEnum(board[a + b + 5][b + 5]);
                     neStones += @intFromEnum(board[b + 5][a + b + 5]);
-                    nwStones += @intFromEnum(board[BoardSize - 6 - a - b][b + 5]);
-                    seStones += @intFromEnum(board[a + b + 5][BoardSize - 6 - b]);
+                    nwStones += @intFromEnum(board[board_size - 6 - a - b][b + 5]);
+                    seStones += @intFromEnum(board[a + b + 5][board_size - 6 - b]);
                     const swScore = calc_score(swStones);
                     const neScore = calc_score(neStones);
                     const nwScore = calc_score(nwStones);
                     const seScore = calc_score(seStones);
-                    for (0..6) |c| {
+                    inline for (0..6) |c| {
                         scores[a + b + c][b + c] += swScore;
                         scores[b + c][a + b + c] += neScore;
-                        scores[BoardSize - 1 - a - b - c][b + c] += nwScore;
-                        scores[a + b + c][BoardSize - 1 - b - c] += seScore;
+                        scores[board_size - 1 - a - b - c][b + c] += nwScore;
+                        scores[a + b + c][board_size - 1 - b - c] += seScore;
                     }
                     swStones -= @intFromEnum(board[a + b][b]);
                     neStones -= @intFromEnum(board[b][a + b]);
-                    nwStones -= @intFromEnum(board[BoardSize - 1 - a - b][b]);
-                    seStones -= @intFromEnum(board[a + b][BoardSize - 1 - b]);
+                    nwStones -= @intFromEnum(board[board_size - 1 - a - b][b]);
+                    seStones -= @intFromEnum(board[a + b][board_size - 1 - b]);
                 }
             }
             var nwseStones: i32 = @intFromEnum(board[0][0]);
-            var neswStones: i32 = @intFromEnum(board[0][BoardSize - 1]);
+            var neswStones: i32 = @intFromEnum(board[0][board_size - 1]);
             for (1..5) |a| {
                 nwseStones += @intFromEnum(board[a][a]);
-                neswStones += @intFromEnum(board[a][BoardSize - 1 - a]);
+                neswStones += @intFromEnum(board[a][board_size - 1 - a]);
             }
-            for (0..BoardSize - 5) |b| {
+            for (0..board_size - 5) |b| {
                 nwseStones += @intFromEnum(board[b + 5][b + 5]);
-                neswStones += @intFromEnum(board[b + 5][BoardSize - 6 - b]);
+                neswStones += @intFromEnum(board[b + 5][board_size - 6 - b]);
                 const nwseScore = calc_score(nwseStones);
                 const neswScore = calc_score(neswStones);
-                for (0..6) |c| {
+                inline for (0..6) |c| {
                     scores[b + c][b + c] += nwseScore;
-                    scores[b + c][BoardSize - 1 - b - c] += neswScore;
+                    scores[b + c][board_size - 1 - b - c] += neswScore;
                 }
                 nwseStones -= @intFromEnum(board[b][b]);
-                neswStones -= @intFromEnum(board[b][BoardSize - 1 - b]);
+                neswStones -= @intFromEnum(board[b][board_size - 1 - b]);
             }
         }
 
@@ -377,11 +377,11 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
         }
 
         fn test_scores(self: Self) void {
-            var scores = [1][BoardSize]i32{[1]i32{0} ** BoardSize} ** BoardSize;
+            var scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size;
             calc_scores(self.board, &scores);
             var failed = false;
-            for (0..BoardSize) |y| {
-                for (0..BoardSize) |x| {
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
                     if (self.board[y][x] == .none and self.scores[y][x] != scores[y][x]) {
                         print("Failure: x={} y={} expected={} actual={}\n", .{ x, y, scores[y][x], self.scores[y][x] });
                         failed = true;
@@ -418,9 +418,9 @@ pub fn C6(Player: type, comptime BoardSize: usize) type {
             print("\n   |                     1 1 1 1 1 1 1 1 1 |", .{});
             print("\n   | 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 |", .{});
             print("\n---+---------------------------------------+---", .{});
-            for (0..BoardSize) |y| {
+            for (0..board_size) |y| {
                 print("\n{:2} |", .{y});
-                for (0..BoardSize) |x| {
+                for (0..board_size) |x| {
                     switch (self.board[y][x]) {
                         .black => print(" X", .{}),
                         .white => print(" O", .{}),
