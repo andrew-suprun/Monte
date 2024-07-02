@@ -93,11 +93,9 @@ struct C6[board_size: Int, debug: Bool]:
             print("place", stone, "at", move, "score", score)
             print(self.str_board(move))
             var winner = self.place_stone(move)
-            print(self)
+            # print(self)
             if winner is None:
                 self.check_scores()
-            else:
-                print("winner =", winner.value()[])
             return winner
         else:
             return self.place_stone(move)
@@ -119,7 +117,6 @@ struct C6[board_size: Int, debug: Bool]:
                 stones += self.board[dx + 5, y]
                 var d = calc_delta(stones, stone)
                 if d[1] != Stone.none:
-                    print("place stone 1: winner =", d[1])
                     return d[1]
 
                 @parameter
@@ -140,7 +137,6 @@ struct C6[board_size: Int, debug: Bool]:
                 stones += self.board[x, dy + 5]
                 var d = calc_delta(stones, stone)
                 if d[1] != Stone.none:
-                    print("place stone 2: winner =", d[1])
                     return d[1]
 
                 @parameter
@@ -173,7 +169,6 @@ struct C6[board_size: Int, debug: Bool]:
                 stones += self.board[start_x + i + 5, start_y + i + 5]
                 var d = calc_delta(stones, stone)
                 if d[1] != Stone.none:
-                    print("place stone 3: winner =", d[1])
                     return d[1]
 
                 @parameter
@@ -207,7 +202,6 @@ struct C6[board_size: Int, debug: Bool]:
                 stones += self.board[start_x - 5 - c, start_y + 5 + c]
                 var d = calc_delta(stones, stone)
                 if d[1] != Stone.none:
-                    print("place stone 4: winner =", d[1])
                     return d[1]
 
                 @parameter
@@ -252,7 +246,7 @@ struct C6[board_size: Int, debug: Bool]:
                     if random_ui64(0, prob) == 0:
                         best_move = Move(x, y)
                         prob += 1
-        if best_score < 32:
+        if best_score < 26:
             return None
         return best_move
 
@@ -420,15 +414,15 @@ fn calc_score(stones: Stone) -> Int32:
     if stones == 0x00:
         return 1
     elif stones == 0x01 or stones == 0x10:
-        return 4
+        return 2
     elif stones == 0x02 or stones == 0x20:
-        return 16
+        return 4
     elif stones == 0x03 or stones == 0x30:
-        return 64
+        return 8
     elif stones == 0x04 or stones == 0x40:
-        return 256
+        return 32
     elif stones == 0x05 or stones == 0x50:
-        return 1024
+        return 64
     else:
         return 0
 
@@ -436,53 +430,51 @@ fn calc_score(stones: Stone) -> Int32:
 fn calc_delta(stones: Stone, stone: Stone) -> (Int, Stone):
     if stone == Stone.black:
         if stones == 0x00:
-            return (3, Stone.none)
+            return (1, Stone.none)
         elif stones == 0x01:
-            return (12, Stone.none)
+            return (2, Stone.none)
         elif stones == 0x02:
-            return (48, Stone.none)
+            return (4, Stone.none)
         elif stones == 0x03:
-            return (192, Stone.none)
+            return (24, Stone.none)
         elif stones == 0x04:
-            return (768, Stone.none)
+            return (32, Stone.none)
         elif stones == 0x05:
-            print("Black wins: stone =", stone, "stones = ", stones)
             return (0, Stone.black)
         elif stones == 0x10:
-            return (-4, Stone.none)
+            return (-2, Stone.none)
         elif stones == 0x20:
-            return (-16, Stone.none)
+            return (-4, Stone.none)
         elif stones == 0x30:
-            return (-64, Stone.none)
+            return (-8, Stone.none)
         elif stones == 0x40:
-            return (-256, Stone.none)
+            return (-32, Stone.none)
         elif stones == 0x50:
-            return (-1024, Stone.none)
+            return (-64, Stone.none)
         else:
             return (0, Stone.none)
     else:
         if stones == 0x00:
-            return (3, Stone.none)
+            return (1, Stone.none)
         elif stones == 0x01:
-            return (-4, Stone.none)
+            return (-2, Stone.none)
         elif stones == 0x02:
-            return (-16, Stone.none)
+            return (-4, Stone.none)
         elif stones == 0x03:
-            return (-64, Stone.none)
+            return (-8, Stone.none)
         elif stones == 0x04:
-            return (-256, Stone.none)
+            return (-32, Stone.none)
         elif stones == 0x05:
-            return (-1024, Stone.none)
+            return (-64, Stone.none)
         elif stones == 0x10:
-            return (12, Stone.none)
+            return (2, Stone.none)
         elif stones == 0x20:
-            return (48, Stone.none)
+            return (4, Stone.none)
         elif stones == 0x30:
-            return (192, Stone.none)
+            return (24, Stone.none)
         elif stones == 0x40:
-            return (768, Stone.none)
+            return (32, Stone.none)
         elif stones == 0x50:
-            print("White wins: stone =", stone, "stones = ", stones)
             return (0, Stone.white)
         else:
             return (0, Stone.none)
