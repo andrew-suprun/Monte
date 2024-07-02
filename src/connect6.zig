@@ -202,7 +202,7 @@ pub fn C6(Player: type, comptime board_size: usize) type {
             var stone = self.next_stone();
             if (game.place_stone(move)) |winner| return player_from_stone(winner);
             while (true) {
-                stone = if (stone == .black) .white else .black;
+                stone = self.next_stone();
                 if (game.rollout_place(&rand)) |place| {
                     if (game.place_stone(place)) |winner| return player_from_stone(winner);
                 } else {
@@ -395,7 +395,7 @@ pub fn C6(Player: type, comptime board_size: usize) type {
             }
         }
 
-        fn print_scores(self: Self, scores: Scores, prefix: []const u8) void {
+        pub fn print_scores(self: Self, scores: Scores, prefix: []const u8) void {
             print("\n{s}\n", .{prefix});
             print("\n   |   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 |", .{});
             print("\n---+-----------------------------------------------------------------------------+---", .{});
