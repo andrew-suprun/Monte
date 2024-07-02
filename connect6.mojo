@@ -90,14 +90,14 @@ struct C6[board_size: Int, debug: Bool]:
         if debug:
             var stone = self.next_stone()
             var score = self.scores[move]
-            var winner = self.place_stone(move)
             print("place", stone, "at", move, "score", score)
             print(self.str_board(move))
+            var winner = self.place_stone(move)
+            print(self)
             if winner is None:
                 self.check_scores()
             else:
                 print("winner =", winner.value()[])
-            print(self)
             return winner
         else:
             return self.place_stone(move)
