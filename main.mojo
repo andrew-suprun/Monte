@@ -2,7 +2,7 @@ from connect6 import SearchTree, C6, Move, Stone
 
 
 fn mainX():
-    var game = C6[19, False]()
+    var game = C6[board_size=19, max_children=32, debug=False]()
 
     var results = List(0, 0, 0)
 
@@ -29,4 +29,4 @@ fn mainX():
 
 
 fn main():
-    _ = C6[19, True]().rollout(Move(8, 8))
+    _ = C6[19, 32, True]().rollout(Move(8, 8))

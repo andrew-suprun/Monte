@@ -2,11 +2,12 @@ from utils.static_tuple import InlineArray
 from collections import Optional
 from sys import exit
 from random import random_ui64
+from heap import Heap
 
 
 @value
 @register_passable("trivial")
-struct Stone:
+struct Stone(Comparable, Stringable):
     var stone: Int8
 
     alias none: Stone = 0x00
@@ -21,6 +22,18 @@ struct Stone:
 
     fn __ne__(self, other: Self) -> Bool:
         return self.stone != other.stone
+
+    fn __lt__(self, other: Self) -> Bool:
+        return self.stone < other.stone
+
+    fn __le__(self, other: Self) -> Bool:
+        return self.stone <= other.stone
+
+    fn __gt__(self, other: Self) -> Bool:
+        return self.stone > other.stone
+
+    fn __ge__(self, other: Self) -> Bool:
+        return self.stone >= other.stone
 
     fn __iadd__(inout self, other: Self):
         self.stone += other.stone
@@ -51,6 +64,34 @@ struct Move:
 
 
 @value
+@register_passable("trivial")
+struct MoveScore(Comparable, CollectionElement, Stringable):
+    var move: Move
+    var score: Int32
+
+    fn __lt__(self, other: Self) -> Bool:
+        return self.score < other.score
+
+    fn __le__(self, other: Self) -> Bool:
+        return self.score <= other.score
+
+    fn __gt__(self, other: Self) -> Bool:
+        return self.score > other.score
+
+    fn __ge__(self, other: Self) -> Bool:
+        return self.score >= other.score
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.score == other.score
+
+    fn __ne__(self, other: Self) -> Bool:
+        return self.score != other.score
+
+    fn __str__(self) -> String:
+        return "[" + str(self.move) + ": " + str(self.score) + "]"
+
+
+@value
 struct Grid[T: CollectionElement, size: Int]:
     var data: InlineArray[InlineArray[T, size], size]
 
@@ -72,7 +113,7 @@ struct Grid[T: CollectionElement, size: Int]:
 
 
 @value
-struct C6[board_size: Int, debug: Bool]:
+struct C6[board_size: Int, max_children: Int, debug: Bool]:
     var board: Grid[Stone, board_size]
     var scores: Grid[Int32, board_size]
     var move_number: Int32
@@ -85,6 +126,21 @@ struct C6[board_size: Int, debug: Bool]:
 
         calc_scores(self.board, self.scores)
         _ = self.make_move(Move(board_size / 2, board_size / 2))
+
+    fn possible_moves(self) -> List[Move]:
+        var heap = Heap[MoveScore, max_children]()
+        for y in range(board_size):
+            for x in range(board_size):
+                heap.add(MoveScore(Move(x, y), self.scores[x, y]))
+
+        if debug:
+            heap._print("possible moves")
+
+        var n_moves = len(heap)
+        var result = List[Move](capacity=n_moves)
+        for i in range(n_moves):
+            result[n_moves - 1 - i] = heap.items[i].move
+        return result
 
     fn make_move(inout self, move: Move) -> Optional[Stone]:
         if debug:
@@ -486,5 +542,40 @@ fn pad(t: String, width: Int) -> String:
 
 
 @value
-struct SearchTree:
-    ...
+struct Node(CollectionElement):
+    var child_nodes: List[Node]
+    var child_moves: List[Move]
+    var black_wins: Int32
+    var white_wins: Int32
+    var n_descendatns: Int32
+    var max_stone: Stone
+    var min_stone: Stone
+
+    fn __init__(inout self):
+        self.child_nodes = List[Node]()
+        self.child_moves = List[Move]()
+        self.black_wins = 0
+        self.white_wins = 0
+        self.n_descendatns = 0
+        self.max_stone = Stone.black
+        self.min_stone = Stone.white
+
+
+struct SearchTree[board_size: Int, max_children: Int, debug: Bool]:
+    var root: Node
+    var game: C6[board_size, max_children, debug]
+
+    fn __init__(inout self):
+        self.root = Node()
+
+    fn expand(inout self):
+        var game = self.game
+        var leaf = self._select_leaf(game)
+        var moves = game.possible_moves()
+        for move in moves:
+            print(move[])
+
+    fn _select_leaf(
+        self, inout c6: C6[board_size, max_children, debug]
+    ) -> Node:
+        ...

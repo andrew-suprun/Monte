@@ -30,20 +30,21 @@ struct Heap[
 
         self.items.append(element)
         self._sift_up()
-        self._check()
+
+    fn remove(inout self) -> ElementType:
+        var result = self.items[0]
+        self.items[0] = self.items.pop()
+        self._sift_down()
+        return result
+
+    fn __len__(self) -> Int:
+        return len(self.items)
 
     fn _print(self, prefix: String):
         print(prefix, end=": ")
         for item in self.items:
             print(item[], end=", ")
         print()
-
-    fn remove(inout self) -> ElementType:
-        var result = self.items[0]
-        self.items[0] = self.items.pop()
-        self._sift_down()
-        self._check()
-        return result
 
     fn _sift_down(inout self):
         var parent_idx = 0
@@ -84,10 +85,3 @@ struct Heap[
             parent_idx = (parent_idx - 1) // 2
 
         self.items[child_idx] = child
-
-    fn _check(self):
-        for child_idx in range(1, len(self.items)):
-            var parent_idx = (child_idx - 1) // 2
-            debug_assert(
-                self.items[parent_idx] <= self.items[child_idx], "FAILURE"
-            )
