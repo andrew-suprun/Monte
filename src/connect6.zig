@@ -3,24 +3,20 @@ const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
-const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
-
-pub fn C6(Player: type, comptime board_size: usize) type {
-    const Board = [board_size][board_size]Stone;
-    const Scores = [board_size][board_size]i32;
-
+pub fn C6(comptime board_size: usize) type {
     return struct {
         board: Board,
         scores: Scores,
         move_number: u32,
 
-        const Self = @This();
-
+        pub const Player = enum(u8) { none = 0x00, first = 0x01, second = 0x10 };
+        pub const explore_factor: f32 = 2;
         pub const Move = struct { x: u8, y: u8 };
 
-        pub const explore_factor: f32 = 2;
-
-        const Heap = std.PriorityDequeue(Move, *Scores, cmp);
+        const Self = @This();
+        const Board = [board_size][board_size]Player;
+        const Scores = [board_size][board_size]i32;
+        const Heap = @import("heap.zig").Heap(Move, *Scores, cmp, 32);
 
         fn cmp(scores: *Scores, a: Move, b: Move) std.math.Order {
             const a_score = scores[a.y][a.x];
@@ -30,7 +26,7 @@ pub fn C6(Player: type, comptime board_size: usize) type {
 
         pub fn init() Self {
             var self = Self{
-                .board = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
+                .board = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size,
                 .scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size,
                 .move_number = 0,
             };
@@ -43,8 +39,8 @@ pub fn C6(Player: type, comptime board_size: usize) type {
         pub fn make_move(self: *Self, move: Move) ?Player {
             if (self.place_stone(move)) |stone| {
                 return switch (stone) {
-                    .black => .first,
-                    .white => .second,
+                    .first => .first,
+                    .second => .second,
                     .none => std.debug.panic("impossible winner", .{}),
                 };
             }
@@ -52,42 +48,31 @@ pub fn C6(Player: type, comptime board_size: usize) type {
         }
 
         pub fn possible_moves(self: *Self, allocator: std.mem.Allocator) []Move {
-            const max_places = 32;
-            var heap = Heap.init(allocator, &self.scores);
-            defer heap.deinit();
-
-            var n_places: u64 = 0;
+            var heap = Heap.init(&self.scores);
 
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
                     if (self.board[y][x] == .none) {
-                        heap.add(.{ .x = @intCast(x), .y = @intCast(y) }) catch unreachable;
-                        n_places += 1;
+                        heap.add(.{ .x = @intCast(x), .y = @intCast(y) });
                     }
                 }
             }
-            n_places = @min(max_places, n_places);
-            var moves = allocator.alloc(Move, n_places) catch unreachable;
-            for (0..n_places) |i| {
-                moves[i] = heap.removeMax();
-            }
+            const moves = allocator.alloc(Move, heap.len) catch unreachable;
+            std.mem.copyForwards(Move, moves, heap.items[0..heap.len]);
             return moves;
         }
 
-        pub fn turn(self: Self) Player {
-            return player_from_stone(self.next_stone());
-        }
-
-        fn place_stone(self: *Self, place: Move) ?Stone {
-            const x = place.x;
-            const y = place.y;
-            const stone = self.next_stone();
+        fn place_stone(self: *Self, move: Move) ?Player {
+            const x = move.x;
+            const y = move.y;
+            const stone = self.next_player();
             var check_scores = true;
+            const score = self.scores[y][x];
             defer {
                 if (debug) {
-                    print("place {s} at {}:{} score={}\n", .{ str_from_stone(stone), x, y, self.scores[y][x] });
+                    print("place {s} at {}:{} score={}\n", .{ str_from_stone(stone), x, y, score });
                     if (check_scores) self.test_scores();
-                    self.print_board();
+                    self.print_board(move);
                     print("\n\n", .{});
                 }
             }
@@ -199,20 +184,20 @@ pub fn C6(Player: type, comptime board_size: usize) type {
             var game = self;
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
 
-            var stone = self.next_stone();
-            if (game.place_stone(move)) |winner| return player_from_stone(winner);
+            var stone = self.next_player();
+            if (game.place_stone(move)) |winner| return winner;
             while (true) {
-                stone = self.next_stone();
+                stone = self.next_player();
                 if (game.rollout_place(&rand)) |place| {
-                    if (game.place_stone(place)) |winner| return player_from_stone(winner);
+                    if (game.place_stone(place)) |winner| return winner;
                 } else {
                     return .none;
                 }
             }
         }
 
-        inline fn next_stone(self: Self) Stone {
-            return if ((self.move_number + 3) & 2 == 2) .black else .white;
+        pub inline fn next_player(self: Self) Player {
+            return if ((self.move_number + 3) & 2 == 2) .first else .second;
         }
 
         fn rollout_place(self: Self, rand: *Prng) ?Move {
@@ -235,16 +220,8 @@ pub fn C6(Player: type, comptime board_size: usize) type {
                     }
                 }
             }
-            if (best_score < 32) return null;
+            if (best_score < 22) return null;
             return best_move;
-        }
-
-        inline fn player_from_stone(stone: Stone) Player {
-            return switch (stone) {
-                .black => .first,
-                .white => .second,
-                .none => .none,
-            };
         }
 
         fn calc_scores(board: Board, scores: *Scores) void {
@@ -328,48 +305,55 @@ pub fn C6(Player: type, comptime board_size: usize) type {
             }
         }
 
+        const zero_stones = 1;
+        const one_stone = 2;
+        const two_stones = 4;
+        const three_stones = 8;
+        const four_stones = 32;
+        const five_stones = 64;
+
         fn calc_score(stones: i32) i32 {
             return switch (stones) {
-                0x00 => 1,
-                0x01, 0x10 => 4,
-                0x02, 0x20 => 16,
-                0x03, 0x30 => 64,
-                0x04, 0x40 => 256,
-                0x05, 0x50 => 1024,
+                0x00 => zero_stones,
+                0x01, 0x10 => one_stone,
+                0x02, 0x20 => two_stones,
+                0x03, 0x30 => three_stones,
+                0x04, 0x40 => four_stones,
+                0x05, 0x50 => five_stones,
                 else => 0,
             };
         }
 
-        fn calc_delta(stones: i32, stone: Stone) struct { score: i32, winner: Stone } {
-            if (stone == .black) {
+        fn calc_delta(stones: i32, stone: Player) struct { score: i32, winner: Player } {
+            if (stone == .first) {
                 const score: i32 = switch (stones) {
-                    0x00 => 3,
-                    0x01 => 12,
-                    0x02 => 48,
-                    0x03 => 192,
-                    0x04 => 768,
-                    0x05 => return .{ .score = 0, .winner = .black },
-                    0x10 => -4,
-                    0x20 => -16,
-                    0x30 => -64,
-                    0x40 => -256,
-                    0x50 => -1024,
+                    0x00 => one_stone - zero_stones,
+                    0x01 => two_stones - one_stone,
+                    0x02 => three_stones - two_stones,
+                    0x03 => four_stones - three_stones,
+                    0x04 => five_stones - four_stones,
+                    0x05 => return .{ .score = 0, .winner = .first },
+                    0x10 => -one_stone,
+                    0x20 => -two_stones,
+                    0x30 => -three_stones,
+                    0x40 => -four_stones,
+                    0x50 => -five_stones,
                     else => 0,
                 };
                 return .{ .score = score, .winner = .none };
             } else {
                 const score: i32 = switch (stones) {
-                    0x00 => 3,
-                    0x01 => -4,
-                    0x02 => -16,
-                    0x03 => -64,
-                    0x04 => -256,
-                    0x05 => -1024,
-                    0x10 => 12,
-                    0x20 => 48,
-                    0x30 => 192,
-                    0x40 => 768,
-                    0x50 => return .{ .score = 0, .winner = .white },
+                    0x00 => one_stone - zero_stones,
+                    0x01 => -one_stone,
+                    0x02 => -two_stones,
+                    0x03 => -three_stones,
+                    0x04 => -four_stones,
+                    0x05 => -five_stones,
+                    0x10 => two_stones - one_stone,
+                    0x20 => three_stones - two_stones,
+                    0x30 => four_stones - three_stones,
+                    0x40 => five_stones - four_stones,
+                    0x50 => return .{ .score = 0, .winner = .second },
                     else => 0,
                 };
                 return .{ .score = score, .winner = .none };
@@ -403,8 +387,8 @@ pub fn C6(Player: type, comptime board_size: usize) type {
                 print("\n{:2} |", .{y});
                 for (row, 0..) |score, x| {
                     switch (self.board[y][x]) {
-                        .black => print("   X", .{}),
-                        .white => print("   O", .{}),
+                        .first => print("   X", .{}),
+                        .second => print("   O", .{}),
                         else => if (score > 0) print("{:4}", .{@as(u32, @intCast(score))}) else print("   .", .{}),
                     }
                 }
@@ -414,31 +398,49 @@ pub fn C6(Player: type, comptime board_size: usize) type {
             print("\n   |   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 |\n", .{});
         }
 
-        fn print_board(self: Self) void {
-            print("\n   |                     1 1 1 1 1 1 1 1 1 |", .{});
-            print("\n   | 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 |", .{});
-            print("\n---+---------------------------------------+---", .{});
+        fn print_board(self: Self, move: Move) void {
+            print("\n   |", .{});
+            for (0..board_size) |i| {
+                print("{:2}", .{i % 10});
+            }
+            print(" |", .{});
+
+            print("\n---+", .{});
+            for (0..board_size) |_| {
+                print("--", .{});
+            }
+            print("-+---", .{});
+
             for (0..board_size) |y| {
                 print("\n{:2} |", .{y});
                 for (0..board_size) |x| {
                     switch (self.board[y][x]) {
-                        .black => print(" X", .{}),
-                        .white => print(" O", .{}),
+                        .first => if (move.x == x and move.y == y) print(" #", .{}) else print(" X", .{}),
+                        .second => if (move.x == x and move.y == y) print(" @", .{}) else print(" O", .{}),
                         else => print(" .", .{}),
                     }
                 }
                 print(" | {:2}", .{y});
             }
-            print("\n---+---------------------------------------+---", .{});
-            print("\n   |                     1 1 1 1 1 1 1 1 1 |", .{});
-            print("\n   | 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 |\n", .{});
+
+            print("\n---+", .{});
+            for (0..board_size) |_| {
+                print("--", .{});
+            }
+            print("-+---", .{});
+
+            print("\n   |", .{});
+            for (0..board_size) |i| {
+                print("{:2}", .{i % 10});
+            }
+            print(" |", .{});
         }
 
-        fn str_from_stone(stone: Stone) []const u8 {
+        fn str_from_stone(stone: Player) []const u8 {
             return switch (stone) {
                 .none => " ",
-                .black => "X",
-                .white => "O",
+                .first => "X",
+                .second => "O",
             };
         }
     };
@@ -446,18 +448,16 @@ pub fn C6(Player: type, comptime board_size: usize) type {
 
 const RowConfig = struct { x: usize, y: usize, count: usize };
 
-const TestPlayer = enum { first, second, none };
-
 test "calc_scores" {
     print("\n", .{});
-    const Game = C6(TestPlayer, 19);
+    const Game = C6(19);
     var c6 = Game.init();
     const result = c6.rollout(.{ .x = 8, .y = 8 });
     print("rollout result {any}\n", .{result});
 }
 
 test "possible_moves" {
-    const Game = C6(TestPlayer, 19);
+    const Game = C6(19);
     var c6 = Game.init();
     const moves = c6.possible_moves(std.testing.allocator);
 

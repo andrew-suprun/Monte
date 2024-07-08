@@ -1,6 +1,5 @@
 from utils.static_tuple import InlineArray
 from collections import Optional
-from sys import exit
 from random import random_ui64
 from heap import Heap
 
@@ -127,7 +126,7 @@ struct C6[board_size: Int, max_children: Int, debug: Bool]:
         calc_scores(self.board, self.scores)
         _ = self.make_move(Move(board_size / 2, board_size / 2))
 
-    fn possible_moves(self) -> List[Move]:
+    fn child_nodes(self) -> List[Node]:
         var heap = Heap[MoveScore, max_children]()
         for y in range(board_size):
             for x in range(board_size):
@@ -137,9 +136,9 @@ struct C6[board_size: Int, max_children: Int, debug: Bool]:
             heap._print("possible moves")
 
         var n_moves = len(heap)
-        var result = List[Move](capacity=n_moves)
+        var result = List[Node](capacity=n_moves)
         for i in range(n_moves):
-            result[n_moves - 1 - i] = heap.items[i].move
+            result[n_moves - 1 - i] = Node(heap.items[i].move)
         return result
 
     fn make_move(inout self, move: Move) -> Optional[Stone]:
@@ -326,8 +325,7 @@ struct C6[board_size: Int, max_children: Int, debug: Bool]:
                     )
                     failed = True
         if failed:
-            print("FAILURE\n", self, sep="")
-            exit(1)
+            abort("check_scores filed")
 
     @always_inline
     fn next_stone(self) -> Stone:
@@ -542,40 +540,68 @@ fn pad(t: String, width: Int) -> String:
 
 
 @value
-struct Node(CollectionElement):
-    var child_nodes: List[Node]
-    var child_moves: List[Move]
+@register_passable("trivial")
+struct Stats:
     var black_wins: Int32
     var white_wins: Int32
-    var n_descendatns: Int32
+    var rollouts: Int32
+
+    fn __init__(inout self):
+        self.black_wins = 0
+        self.white_wins = 0
+        self.rollouts = 0
+
+
+@value
+@register_passable("trivial")
+struct Node(CollectionElement):
+    var move: Move
+    var first_child: Int32
+    var next_sibling: Int32
+    var stats: Stats
     var max_stone: Stone
     var min_stone: Stone
 
-    fn __init__(inout self):
-        self.child_nodes = List[Node]()
-        self.child_moves = List[Move]()
-        self.black_wins = 0
-        self.white_wins = 0
-        self.n_descendatns = 0
+    fn __init__(inout self, move: Move):
+        self.move = move
+        self.first_child = 0
+        self.next_sibling = 0
+        self.stats = Stats()
         self.max_stone = Stone.black
         self.min_stone = Stone.white
 
 
-struct SearchTree[board_size: Int, max_children: Int, debug: Bool]:
-    var root: Node
+struct SearchTree[
+    *, board_size: Int, node_capacity: Int, max_children: Int, debug: Bool
+]:
+    var nodes: List[Node]
+    var root: Int32
+    var free_node_list: Int32
     var game: C6[board_size, max_children, debug]
 
     fn __init__(inout self):
-        self.root = Node()
+        self.nodes = List[Node](capacity=node_capacity)
+        for i in range(node_capacity):
+            self.nodes[i] = Node(Move(0, 0))
+            self.nodes[i].first_child = i - 1
+        self.root = 0
+        self.free_node_list = node_capacity - 1
+
+        self.game = C6[board_size, max_children, debug]()
 
     fn expand(inout self):
-        var game = self.game
-        var leaf = self._select_leaf(game)
-        var moves = game.possible_moves()
-        for move in moves:
-            print(move[])
+        var leaf = self._select_leaf()
+        var nodes = self.game.child_nodes()
+        for node in nodes:
+            print(node[].move)
 
-    fn _select_leaf(
-        self, inout c6: C6[board_size, max_children, debug]
-    ) -> Node:
-        ...
+    fn _select_leaf(self, inout node: Node) -> Int:
+        var n = node
+        var f = node.first_child
+        while self.nodes[int(node_idx)].first_child >= 0:
+            node_idx = self._select_child()
+
+        return -1
+
+    fn _select_child(self, node_idx: Int) -> Int:
+        return -1
