@@ -49,12 +49,12 @@ pub fn deinit(tree: *SearchTree) void {
 
 pub fn expand(tree: *SearchTree) !void {
     var scores = tree.scores.clone();
-    tree.scores.print_scores();
+    tree.scores.printScores();
 
     const leaf = tree.selectLeaf(&scores);
     print("{any}\n", .{leaf});
 
-    // var scores = board.calc_scores();
+    // var scores = board.calcScores();
 
     // var player: Player = .first;
     // var places_to_consider = std.AutoHashMap(Coord, void).init(tree.allocator);
@@ -84,7 +84,7 @@ pub fn expand(tree: *SearchTree) !void {
     // }
     // print("places = {any}\n\n\n", .{places.items});
 
-    // const scores = calc_scores(&board);
+    // const scores = calcScores(&board);
 
     // var j: Score = 1;
     // for (places.items[0 .. places.items.len - 1], 1..) |one, i| {
@@ -103,7 +103,7 @@ fn selectLeaf(tree: SearchTree, scores: *Scores) *Node {
 
     while (node.child != null) {
         node = selectChild(node, scores.turn);
-        _ = scores.make_move(.{ .{ .x = node.move.x1, .y = node.move.y1 }, .{ .x = node.move.x2, .y = node.move.y2 } });
+        _ = scores.makeMove(.{ .{ .x = node.move.x1, .y = node.move.y1 }, .{ .x = node.move.x2, .y = node.move.y2 } });
     }
     return node;
 }

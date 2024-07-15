@@ -7,6 +7,7 @@ const Prng = std.rand.Random.DefaultPrng;
 
 const Self = @This();
 const Player = @import("tree.zig").Player;
+pub const max_moves: usize = 5;
 
 pub const Move = isize;
 
@@ -18,16 +19,15 @@ pub fn clone(self: Self) Self {
     return self;
 }
 
-pub fn possible_moves(self: Self, allocator: Allocator) []Move {
-    const n_moves = self.rng.next() % 5 + 1;
-    var result = allocator.alloc(Move, n_moves);
+pub fn possibleMoves(self: Self, buf: [max_moves]Move) []Move {
+    const n_moves = self.rng.next() % max_moves + 1;
     for (0..n_moves) |i| {
-        result[i] = i;
+        buf[i] = i;
     }
-    return result;
+    return buf[0..n_moves];
 }
 
-pub fn make_move(self: *Self, _: Move) ?Player {
+pub fn makeMove(self: *Self, _: Move) ?Player {
     switch (self.rng.next() % 10) {
         0 => return .none,
         1 => return .first,
@@ -44,10 +44,10 @@ pub fn rollout(self: *Self) Player {
     }
 }
 
-pub inline fn next_player(self: Self) Player {
+pub inline fn nextPlayer(self: Self) Player {
     return if (self.moves_played % 2 == 1) .first else .second;
 }
 
-pub inline fn previous_player(self: Self) Player {
+pub inline fn previousPlayer(self: Self) Player {
     return if (self.moves_played % 2 == 0) .first else .second;
 }

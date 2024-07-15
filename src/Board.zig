@@ -85,7 +85,7 @@ fn add_places_to_consider(place: Place, places: *std.AutoHashMap(Place, void)) !
     }
 }
 
-pub fn print_board(self: Board) void {
+pub fn printBoard(self: Board) void {
     for (0..BoardSize) |j| {
         for (0..BoardSize) |i| {
             switch (self.places[i][j]) {

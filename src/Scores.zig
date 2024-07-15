@@ -41,7 +41,7 @@ inline fn inc(self: *Scores, place: Place, value: Score) void {
     self.places[@intCast(place.x)][@intCast(place.y)] += value;
 }
 
-pub inline fn make_move(scores: *Scores, move: [2]Board.Place) bool {
+pub inline fn makeMove(scores: *Scores, move: [2]Board.Place) bool {
     inline for (move) |place| {
         inline for (raw_indices(place)) |idx| {
             _ = scores.score_row(Board.row_config(idx), true);
@@ -93,7 +93,7 @@ fn score_row(scores: *Scores, row_config: Board.RowConfig, comptime clear: bool)
     return false;
 }
 
-pub fn print_scores(self: Scores) void {
+pub fn printScores(self: Scores) void {
     for (0..BoardSize) |j| {
         for (0..BoardSize) |i| {
             print("{:3} ", .{self.places[i][j]});
