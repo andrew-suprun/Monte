@@ -3,52 +3,46 @@ const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
+const Player = @import("tree.zig").Player;
+
 pub fn C6(comptime board_size: usize) type {
     return struct {
         board: Board,
         scores: Scores,
         move_number: u32,
 
-        pub const Player = enum(u8) { none = 0x00, first = 0x01, second = 0x10 };
-        pub const explore_factor: f32 = 2;
+        pub const Stone = enum(u8) { none = 0x00, first = 0x01, second = 0x10 };
         pub const Move = struct { x: u8, y: u8 };
+        pub const max_moves: usize = 32;
+        pub const explore_factor: f32 = 2;
 
         const Self = @This();
-        const Board = [board_size][board_size]Player;
+        const Board = [board_size][board_size]Stone;
         const Scores = [board_size][board_size]i32;
-        const Heap = @import("heap.zig").Heap(Move, *Scores, cmp, 32);
+        const Heap = @import("heap.zig").Heap(Move, Scores, cmp, max_moves);
 
-        fn cmp(scores: *Scores, a: Move, b: Move) std.math.Order {
-            const a_score = scores[a.y][a.x];
-            const b_score = scores[b.y][b.x];
-            return if (a_score < b_score) .lt else if (a_score > b_score) .gt else .eq;
+        fn cmp(scores: Scores, a: Move, b: Move) bool {
+            return scores[a.y][a.x] < scores[b.y][b.x];
         }
 
         pub fn init() Self {
             var self = Self{
-                .board = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size,
+                .board = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
                 .scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size,
                 .move_number = 0,
             };
             calc_scores(self.board, &self.scores);
-            _ = self.place_stone(Move{ .x = board_size / 2, .y = board_size / 2 });
+            _ = self.make_move(Move{ .x = board_size / 2, .y = board_size / 2 });
 
             return self;
         }
 
-        pub fn make_move(self: *Self, move: Move) ?Player {
-            if (self.place_stone(move)) |stone| {
-                return switch (stone) {
-                    .first => .first,
-                    .second => .second,
-                    .none => std.debug.panic("impossible winner", .{}),
-                };
-            }
-            return null;
+        pub fn clone(self: Self) Self {
+            return self;
         }
 
-        pub fn possible_moves(self: *Self, allocator: std.mem.Allocator) []Move {
-            var heap = Heap.init(&self.scores);
+        pub fn possible_moves(self: Self, buf: []Move) []Move {
+            var heap = Heap.init(self.scores);
 
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
@@ -57,15 +51,14 @@ pub fn C6(comptime board_size: usize) type {
                     }
                 }
             }
-            const moves = allocator.alloc(Move, heap.len) catch unreachable;
-            std.mem.copyForwards(Move, moves, heap.items[0..heap.len]);
-            return moves;
+
+            return heap.sorted(buf);
         }
 
-        fn place_stone(self: *Self, move: Move) ?Player {
+        pub fn make_move(self: *Self, move: Move) ?Stone {
             const x = move.x;
             const y = move.y;
-            const stone = self.next_player();
+            const stone = self.next_stone();
             var check_scores = true;
             const score = self.scores[y][x];
             defer {
@@ -180,27 +173,35 @@ pub fn C6(comptime board_size: usize) type {
             return null;
         }
 
-        pub fn rollout(self: Self, move: Move) Player {
+        pub fn rollout(self: Self, move: Move) Stone {
             var game = self;
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
 
-            var stone = self.next_player();
-            if (game.place_stone(move)) |winner| return winner;
+            var stone = self.next_stone();
+            if (game.make_move(move)) |winner| return winner;
             while (true) {
-                stone = self.next_player();
-                if (game.rollout_place(&rand)) |place| {
-                    if (game.place_stone(place)) |winner| return winner;
+                stone = self.next_stone();
+                if (game.select_random_move(&rand)) |place| {
+                    if (game.make_move(place)) |winner| return winner;
                 } else {
                     return .none;
                 }
             }
         }
 
-        pub inline fn next_player(self: Self) Player {
+        inline fn next_stone(self: Self) Stone {
             return if ((self.move_number + 3) & 2 == 2) .first else .second;
         }
 
-        fn rollout_place(self: Self, rand: *Prng) ?Move {
+        inline fn next_player(self: Self) Player {
+            return switch (self.next_stone()) {
+                .none => .none,
+                .black => .first,
+                .white => .second,
+            };
+        }
+
+        fn select_random_move(self: Self, rand: *Prng) ?Move {
             var best_move = Move{ .x = 0, .y = 0 };
             var best_score: i32 = 0;
             var prob: u64 = 2;
@@ -324,7 +325,7 @@ pub fn C6(comptime board_size: usize) type {
             };
         }
 
-        fn calc_delta(stones: i32, stone: Player) struct { score: i32, winner: Player } {
+        fn calc_delta(stones: i32, stone: Stone) struct { score: i32, winner: Stone } {
             if (stone == .first) {
                 const score: i32 = switch (stones) {
                     0x00 => one_stone - zero_stones,
@@ -436,7 +437,7 @@ pub fn C6(comptime board_size: usize) type {
             print(" |", .{});
         }
 
-        fn str_from_stone(stone: Player) []const u8 {
+        fn str_from_stone(stone: Stone) []const u8 {
             return switch (stone) {
                 .none => " ",
                 .first => "X",
@@ -452,18 +453,18 @@ test "calc_scores" {
     print("\n", .{});
     const Game = C6(19);
     var c6 = Game.init();
-    const result = c6.rollout(.{ .x = 8, .y = 8 });
+    _ = c6.make_move(.{ .x = 18, .y = 18 });
+    const result = c6.rollout(.{ .x = 0, .y = 0 });
     print("rollout result {any}\n", .{result});
 }
 
 test "possible_moves" {
     const Game = C6(19);
     var c6 = Game.init();
-    const moves = c6.possible_moves(std.testing.allocator);
+    var buf: [Game.max_moves]Game.Move = undefined;
+    const moves = c6.possible_moves(&buf);
 
     for (moves, 0..) |move, i| {
         print("{} - {}:{}\n", .{ i + 1, move.x, move.y });
     }
-
-    std.testing.allocator.free(moves);
 }

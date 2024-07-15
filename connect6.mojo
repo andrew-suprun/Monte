@@ -590,18 +590,4 @@ struct SearchTree[
         self.game = C6[board_size, max_children, debug]()
 
     fn expand(inout self):
-        var leaf = self._select_leaf()
-        var nodes = self.game.child_nodes()
-        for node in nodes:
-            print(node[].move)
-
-    fn _select_leaf(self, inout node: Node) -> Int:
-        var n = node
-        var f = node.first_child
-        while self.nodes[int(node_idx)].first_child >= 0:
-            node_idx = self._select_child()
-
-        return -1
-
-    fn _select_child(self, node_idx: Int) -> Int:
-        return -1
+        ...

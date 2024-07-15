@@ -1,8 +1,7 @@
 const std = @import("std");
 const print = std.debug.print;
-const Order = std.math.Order;
 
-pub fn Heap(comptime T: type, comptime Context: type, comptime compareFn: fn (context: Context, a: T, b: T) Order, capacity: usize) type {
+pub fn Heap(comptime T: type, comptime Context: type, comptime less: fn (context: Context, a: T, b: T) bool, capacity: usize) type {
     return struct {
         const Self = @This();
 
@@ -16,7 +15,7 @@ pub fn Heap(comptime T: type, comptime Context: type, comptime compareFn: fn (co
 
         pub fn add(self: *Self, elem: T) void {
             if (self.len == capacity) {
-                if (compareFn(self.context, elem, self.items[0]) == .lt) return;
+                if (less(self.context, elem, self.items[0])) return;
                 self.items[0] = elem;
                 self.sift_down();
                 return;
@@ -34,11 +33,19 @@ pub fn Heap(comptime T: type, comptime Context: type, comptime compareFn: fn (co
             return result;
         }
 
+        pub fn sorted(self: *Self, buf: []T) []T {
+            const len = self.len;
+            for (0..len) |i| {
+                buf[len - 1 - i] = self.remove();
+            }
+            return buf[0..len];
+        }
+
         fn sift_up(self: *Self) void {
             var child_idx = self.len - 1;
             const child = self.items[child_idx];
 
-            while (child_idx > 0 and compareFn(self.context, child, self.items[(child_idx - 1) / 2]) == .lt) {
+            while (child_idx > 0 and less(self.context, child, self.items[(child_idx - 1) / 2])) {
                 const parent_idx = (child_idx - 1) / 2;
                 self.items[child_idx] = self.items[parent_idx];
                 child_idx = parent_idx;
@@ -54,14 +61,14 @@ pub fn Heap(comptime T: type, comptime Context: type, comptime compareFn: fn (co
             while (true) {
                 var first = parent_idx;
                 const left_child_idx = parent_idx * 2 + 1;
-                if (left_child_idx < self.len and compareFn(self.context, self.items[left_child_idx], top_element) == .lt) {
+                if (left_child_idx < self.len and less(self.context, self.items[left_child_idx], top_element)) {
                     first = left_child_idx;
                 }
 
                 const right_child_idx = parent_idx * 2 + 2;
                 if (right_child_idx < self.len and
-                    compareFn(self.context, self.items[right_child_idx], top_element) == .lt and
-                    compareFn(self.context, self.items[right_child_idx], self.items[left_child_idx]) == .lt)
+                    less(self.context, self.items[right_child_idx], top_element) and
+                    less(self.context, self.items[right_child_idx], self.items[left_child_idx]))
                 {
                     first = right_child_idx;
                 }
@@ -78,9 +85,9 @@ pub fn Heap(comptime T: type, comptime Context: type, comptime compareFn: fn (co
     };
 }
 
-fn cmp(ctxt: usize, a: usize, b: usize) Order {
+fn cmp(ctxt: usize, a: usize, b: usize) bool {
     _ = ctxt;
-    return if (a < b) .lt else if (a > b) .gt else .eq;
+    return a < b;
 }
 
 const Prng = std.rand.Random.DefaultPrng;
@@ -93,12 +100,9 @@ test {
         heap.add(prng.next() % 100);
     }
     assert(heap.len == 20);
-    print("{any}\n", .{heap.items});
-    var current: usize = 0;
-    for (0..20) |_| {
-        const next = heap.remove();
-        print("{}\n", .{next});
-        assert(current <= next);
-        current = next;
+    var buf: [20]usize = undefined;
+    const sorted = heap.sorted(&buf);
+    for (1..sorted.len) |i| {
+        assert(sorted[i - 1] >= sorted[i]);
     }
 }
