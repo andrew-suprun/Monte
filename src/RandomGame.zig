@@ -19,7 +19,7 @@ pub fn clone(self: Self) Self {
     return self;
 }
 
-pub fn possibleMoves(self: Self, buf: [max_moves]Move) []Move {
+pub fn possibleMoves(self: Self, buf: []Move) []Move {
     const n_moves = self.rng.next() % max_moves + 1;
     for (0..n_moves) |i| {
         buf[i] = i;

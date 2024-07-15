@@ -48,7 +48,7 @@ fn outcome(self: Self, move: Move) ?Player {
     return null;
 }
 
-pub fn possibleMoves(self: Self, buf: [max_moves]Move) []Move {
+pub fn possibleMoves(self: Self, buf: []Move) []Move {
     var idx: usize = 0;
     for (self.board, 0..) |row, y| {
         for (row, 0..) |place, x| {
