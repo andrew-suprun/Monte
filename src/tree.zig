@@ -2,12 +2,12 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub const Player = enum { second, none, first };
-
 // const Game = @import("connect6.zig").C6(19); // ###
 // const Game = @import("TicTacToe.zig"); // ###
 const Game = @import("RandomGame.zig"); // ###
-const Node = @import("node.zig").Node(Game);
+const node = @import("node.zig");
+const Node = node.Node(Game);
+pub const Player = node.Player;
 
 // pub fn SearchTree(comptime Game: type) type { // ###
 pub fn SearchTree() type {
