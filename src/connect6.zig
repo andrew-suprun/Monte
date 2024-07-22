@@ -11,7 +11,7 @@ pub fn C6(comptime board_size: usize) type {
         scores: Scores,
         move_number: u32,
 
-        pub const Stone = enum(u8) { none = 0x00, first = 0x01, second = 0x10 };
+        pub const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
         pub const Move = struct { x: u8, y: u8 };
         pub const max_moves: usize = 32;
         pub const explore_factor: f32 = 2;
@@ -37,10 +37,6 @@ pub fn C6(comptime board_size: usize) type {
             return self;
         }
 
-        pub fn clone(self: Self) Self {
-            return self;
-        }
-
         pub fn possibleMoves(self: Self, buf: []Move) []Move {
             var heap = Heap.init(self.scores);
 
@@ -55,7 +51,7 @@ pub fn C6(comptime board_size: usize) type {
             return heap.sorted(buf);
         }
 
-        pub fn makeMove(self: *Self, move: Move) ?Stone {
+        pub fn makeMove(self: *Self, move: Move) ?Player {
             const x = move.x;
             const y = move.y;
             const stone = self.nextStone();
@@ -81,7 +77,7 @@ pub fn C6(comptime board_size: usize) type {
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
                         check_scores = false;
-                        return d.winner;
+                        return playerFromStone(d.winner);
                     }
                     inline for (0..6) |c| {
                         self.scores[y][dx + c] += d.score;
@@ -102,7 +98,7 @@ pub fn C6(comptime board_size: usize) type {
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
                         check_scores = false;
-                        return d.winner;
+                        return playerFromStone(d.winner);
                     }
                     inline for (0..6) |c| {
                         self.scores[dy + c][x] += d.score;
@@ -130,7 +126,7 @@ pub fn C6(comptime board_size: usize) type {
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
                         check_scores = false;
-                        return d.winner;
+                        return playerFromStone(d.winner);
                     }
                     inline for (0..6) |e| {
                         self.scores[yy + e][xx + e] += d.score;
@@ -159,7 +155,7 @@ pub fn C6(comptime board_size: usize) type {
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
                         check_scores = false;
-                        return d.winner;
+                        return playerFromStone(d.winner);
                     }
                     inline for (0..6) |e| {
                         self.scores[start_y + c + e][start_x - c - e] += d.score;
@@ -173,16 +169,12 @@ pub fn C6(comptime board_size: usize) type {
             return null;
         }
 
-        pub fn rollout(self: Self, move: Move) Stone {
-            var game = self;
+        pub fn rollout(self: *Self) Player {
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
 
-            var stone = self.nextStone();
-            if (game.makeMove(move)) |winner| return winner;
             while (true) {
-                stone = self.nextStone();
-                if (game.selectRandomMove(&rand)) |place| {
-                    if (game.makeMove(place)) |winner| return winner;
+                if (self.selectRandomMove(&rand)) |place| {
+                    if (self.makeMove(place)) |winner| return winner;
                 } else {
                     return .none;
                 }
@@ -190,11 +182,15 @@ pub fn C6(comptime board_size: usize) type {
         }
 
         inline fn nextStone(self: Self) Stone {
-            return if ((self.move_number + 3) & 2 == 2) .first else .second;
+            return if ((self.move_number + 3) & 2 == 2) .black else .white;
         }
 
-        inline fn nextPlayer(self: Self) Player {
-            return switch (self.nextStone()) {
+        pub inline fn nextPlayer(self: Self) Player {
+            return playerFromStone(self.nextStone());
+        }
+
+        inline fn playerFromStone(stone: Stone) Player {
+            return switch (stone) {
                 .none => .none,
                 .black => .first,
                 .white => .second,
@@ -326,14 +322,14 @@ pub fn C6(comptime board_size: usize) type {
         }
 
         fn calcDelta(stones: i32, stone: Stone) struct { score: i32, winner: Stone } {
-            if (stone == .first) {
+            if (stone == .black) {
                 const score: i32 = switch (stones) {
                     0x00 => one_stone - zero_stones,
                     0x01 => two_stones - one_stone,
                     0x02 => three_stones - two_stones,
                     0x03 => four_stones - three_stones,
                     0x04 => five_stones - four_stones,
-                    0x05 => return .{ .score = 0, .winner = .first },
+                    0x05 => return .{ .score = 0, .winner = .black },
                     0x10 => -one_stone,
                     0x20 => -two_stones,
                     0x30 => -three_stones,
@@ -354,7 +350,7 @@ pub fn C6(comptime board_size: usize) type {
                     0x20 => three_stones - two_stones,
                     0x30 => four_stones - three_stones,
                     0x40 => five_stones - four_stones,
-                    0x50 => return .{ .score = 0, .winner = .second },
+                    0x50 => return .{ .score = 0, .winner = .white },
                     else => 0,
                 };
                 return .{ .score = score, .winner = .none };
@@ -388,8 +384,8 @@ pub fn C6(comptime board_size: usize) type {
                 print("\n{:2} |", .{y});
                 for (row, 0..) |score, x| {
                     switch (self.board[y][x]) {
-                        .first => print("   X", .{}),
-                        .second => print("   O", .{}),
+                        .black => print("   X", .{}),
+                        .white => print("   O", .{}),
                         else => if (score > 0) print("{:4}", .{@as(u32, @intCast(score))}) else print("   .", .{}),
                     }
                 }
@@ -416,8 +412,8 @@ pub fn C6(comptime board_size: usize) type {
                 print("\n{:2} |", .{y});
                 for (0..board_size) |x| {
                     switch (self.board[y][x]) {
-                        .first => if (move.x == x and move.y == y) print(" #", .{}) else print(" X", .{}),
-                        .second => if (move.x == x and move.y == y) print(" @", .{}) else print(" O", .{}),
+                        .black => if (move.x == x and move.y == y) print(" #", .{}) else print(" X", .{}),
+                        .white => if (move.x == x and move.y == y) print(" @", .{}) else print(" O", .{}),
                         else => print(" .", .{}),
                     }
                 }
@@ -440,8 +436,8 @@ pub fn C6(comptime board_size: usize) type {
         fn strFromStone(stone: Stone) []const u8 {
             return switch (stone) {
                 .none => " ",
-                .first => "X",
-                .second => "O",
+                .black => "X",
+                .white => "O",
             };
         }
     };
@@ -454,7 +450,7 @@ test "calcScores" {
     const Game = C6(19);
     var c6 = Game.init();
     _ = c6.makeMove(.{ .x = 18, .y = 18 });
-    const result = c6.rollout(.{ .x = 0, .y = 0 });
+    const result = c6.rollout();
     print("rollout result {any}\n", .{result});
 }
 

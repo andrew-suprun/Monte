@@ -19,11 +19,11 @@ const tree = @import("tree.zig");
 // }
 
 pub fn main() !void {
-    var game = Game.init();
+    const game = Game.init();
     var results: [3]u32 = .{ 0, 0, 0 };
 
     for (0..100_000) |_| {
-        var game_clone = game.clone();
+        var game_clone = game;
         const result = game_clone.rollout();
         switch (result) {
             .none => results[0] += 1,

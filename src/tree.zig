@@ -30,8 +30,9 @@ pub fn SearchTree() type {
         }
 
         pub fn expand(self: *Self) void {
+            print("\n\n=== EXPAND ROOT ===\n", .{});
             var game = Game.init();
-            self.root.expand(&game);
+            self.root.expand(&game, self.allocator);
         }
     };
 }

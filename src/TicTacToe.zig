@@ -24,10 +24,6 @@ pub fn init() Self {
     };
 }
 
-pub fn clone(self: Self) Self {
-    return self;
-}
-
 pub fn makeMove(self: *Self, move: Move) ?Player {
     self.board[move.y][move.x] = self.turn;
     self.turn = if (self.turn == .first) .second else .first;
