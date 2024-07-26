@@ -3,16 +3,14 @@ const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
-const Player = @import("tree.zig").Player;
-
-pub fn C6(comptime board_size: usize) type {
+pub fn C6(comptime Player: type, comptime board_size: usize) type {
     return struct {
         board: Board,
         scores: Scores,
         move_number: u32,
 
         pub const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
-        pub const Move = struct { x: u8, y: u8 };
+        pub const Move = struct { player: Player, x: u8, y: u8 };
         pub const max_moves: usize = 32;
         pub const explore_factor: f32 = 2;
 
@@ -38,12 +36,13 @@ pub fn C6(comptime board_size: usize) type {
         }
 
         pub fn possibleMoves(self: Self, buf: []Move) []Move {
+            const player = playerFromStone(self.nextStone());
             var heap = Heap.init(self.scores);
 
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
                     if (self.board[y][x] == .none) {
-                        heap.add(.{ .x = @intCast(x), .y = @intCast(y) });
+                        heap.add(.{ .player = player, .x = @intCast(x), .y = @intCast(y) });
                     }
                 }
             }
@@ -183,10 +182,6 @@ pub fn C6(comptime board_size: usize) type {
 
         inline fn nextStone(self: Self) Stone {
             return if ((self.move_number + 3) & 2 == 2) .black else .white;
-        }
-
-        pub inline fn nextPlayer(self: Self) Player {
-            return playerFromStone(self.nextStone());
         }
 
         inline fn playerFromStone(stone: Stone) Player {

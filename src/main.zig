@@ -19,18 +19,37 @@ const tree = @import("tree.zig");
 // }
 
 pub fn main() !void {
-    const game = Game.init();
-    var results: [3]u32 = .{ 0, 0, 0 };
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
 
-    for (0..100_000) |_| {
-        var game_clone = game;
-        const result = game_clone.rollout();
-        switch (result) {
-            .none => results[0] += 1,
-            .first => results[1] += 1,
-            .second => results[2] += 1,
+    var game = Game.init();
+
+    var first = tree.SearchTree(Game){};
+    first.deinit(allocator);
+
+    var second = tree.SearchTree(Game){};
+    second.deinit(allocator);
+
+    var move: Game.Move = undefined;
+    move.player = .first;
+    while (true) {
+        if (move.player == .first) {
+            for (0..1000) |_| {
+                if (first.expand(allocator)) |winner| {
+                    print("Winner {any}\n", .{winner});
+                    break;
+                }
+            }
+            move = first.selectBestMove(.first);
+        } else {}
+        if (game.makeMove(move)) |winner| {
+            print("Winner {any}\n", .{winner});
+            break;
         }
     }
+}
 
-    print("rollout results draw: {} first: {} second: {}\n", .{ results[0], results[1], results[2] });
+test {
+    std.testing.refAllDecls(@This());
+    // std.testing.refAllDeclsRecursive(@This()); ???
 }

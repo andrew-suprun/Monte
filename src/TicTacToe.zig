@@ -68,11 +68,11 @@ pub fn rollout(self: *Self) Player {
 }
 
 pub inline fn nextPlayer(self: Self) Player {
-    return if (self.moves_played % 2 == 1) .first else .second;
+    return if (self.moves_played % 2 == 0) .first else .second;
 }
 
-pub inline fn previousPlayer(self: Self) Player {
-    return if (self.moves_played % 2 == 0) .first else .second;
+inline fn previousPlayer(self: Self) Player {
+    return if (self.moves_played % 2 == 1) .first else .second;
 }
 
 fn selectRandomMove(self: Self, rng: anytype) Move {

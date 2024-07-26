@@ -2,26 +2,23 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-// const Game = @import("connect6.zig").C6(19); // ###
-// const Game = @import("TicTacToe.zig"); // ###
-const Game = @import("RandomGame.zig"); // ###
 const node = @import("node.zig");
-const Node = node.Node(Game);
 pub const Player = node.Player;
 
-// pub fn SearchTree(comptime Game: type) type { // ###
-pub fn SearchTree() type {
+pub fn SearchTree(comptime Game: type) type {
+    const Node = node.Node(Game);
     return struct {
         root: Node,
+        game: Game,
         allocator: Allocator,
 
-        const Self = SearchTree();
-        // const Self = SearchTree(Game); // ###
+        const Self = SearchTree(Game); // ###
 
-        pub fn init(allocator: Allocator) Self {
+        pub fn init(game: Game, allocator: Allocator) Self {
             return Self{
-                .allocator = allocator,
+                .game = game,
                 .root = Node.init(undefined),
+                .allocator = allocator,
             };
         }
 
@@ -29,10 +26,10 @@ pub fn SearchTree() type {
             self.root.deinit(self.allocator);
         }
 
-        pub fn expand(self: *Self) void {
+        pub fn expand(self: *Self) ?Player {
             print("\n\n=== EXPAND ROOT ===\n", .{});
-            var game = Game.init();
-            self.root.expand(&game, self.allocator);
+            var new_game = self.game;
+            return self.root.expand(&new_game, self.allocator);
         }
     };
 }
