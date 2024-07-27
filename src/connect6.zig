@@ -17,7 +17,12 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             pub inline fn eql(self: @This(), other: @This()) bool {
                 return self.x == other.x and self.y == other.y;
             }
+
+            pub fn print(self: @This()) void {
+                std.debug.print("[{d}:{d}]", .{ self.x, self.y });
+            }
         };
+
         pub const max_moves: usize = 32;
         pub const explore_factor: f32 = 2;
 

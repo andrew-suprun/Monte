@@ -3,11 +3,10 @@ const Allocator = std.mem.Allocator;
 const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 
-const node = @import("node.zig");
-pub const Player = node.Player;
+pub const Player = @import("node.zig").Player;
 
 pub fn SearchTree(comptime Game: type) type {
-    const Node = node.Node(Game);
+    const Node = @import("node.zig").Node(Game);
     return struct {
         root: Node,
         game: Game,
@@ -30,17 +29,39 @@ pub fn SearchTree(comptime Game: type) type {
             self.allocator.free(self.root.children);
         }
 
-        pub fn expand(self: *Self) ?Player {
+        pub fn expand(self: *Self) void {
             var new_game = self.game;
-            return self.root.expand(&new_game, self.allocator);
+            self.root.expand(&new_game, self.allocator);
         }
 
-        pub fn bestMove(self: Self, comptime player: Player) Game.Move {
-            return self.root.bestMove(player);
+        pub fn bestMove(self: Self) Game.Move {
+            return self.root.bestMove(self.game);
         }
 
-        pub inline fn nextPlayer(self: Self) Player {
-            return self.game.nextPlayer();
+        pub fn bestLine(self: Self, buf: []Game.Move) []Game.Move {
+            var node = self.root;
+            var game = self.game;
+            for (0..buf.len) |i| {
+                if (node.children.len == 0) {
+                    return buf[0..i];
+                }
+                const move = node.bestMove(game);
+                for (node.children) |child| {
+                    if (child.move.eql(move)) {
+                        buf[i] = move;
+                        node = child;
+                        _ = game.makeMove(move);
+                        break;
+                    }
+                } else {
+                    unreachable;
+                }
+            }
+            return buf;
+        }
+
+        pub fn debugPrint(self: Self, comptime prefix: []const u8, player: Player) void {
+            self.root.debugPrint(prefix, player);
         }
 
         pub fn randomMove(self: Self) ?Game.Move {
@@ -79,5 +100,5 @@ test SearchTree {
     const game = Game{};
     var tree = SearchTree(Game).init(game, std.testing.allocator);
     defer tree.deinit();
-    _ = tree.expand();
+    tree.expand();
 }

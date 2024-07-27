@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 const tree = @import("tree.zig");
 // const Game = @import("connect6.zig").C6(tree.Player, 19);
 // const Game = @import("RandomGame.zig");
-const Game = @import("TicTacToe.zig");
+const Game = @import("ttt.zig").TicTacToe(tree.Player);
 
 // pub fn main() !void {
 //     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -28,15 +28,26 @@ pub fn main() !void {
     second.deinit();
 
     var move: Game.Move = undefined;
+    print("\n{any}\n", .{@sizeOf(@import("node.zig").Node(Game))});
     while (true) {
-        if (first.nextPlayer() == .first) {
-            for (0..10_000) |_| {
-                if (first.expand()) |winner| {
-                    print("\nWinner {any}\n", .{winner});
+        const player = first.game.nextPlayer();
+        if (player == .first) {
+            for (1..10_000) |i| {
+                first.expand();
+                if (first.root.min_result == first.root.max_result) {
+                    print("\nexpands {d} | Winner {any}\n", .{ i, first.root.min_result });
+                    var buf: [10]Game.Move = undefined;
+                    const line = first.bestLine(&buf);
+                    print("\n best line", .{});
+                    for (line) |line_move| {
+                        print(" - ", .{});
+                        line_move.print();
+                    }
+                    first.debugPrint("TREE", .first);
                     break;
                 }
             }
-            move = first.bestMove(.first);
+            move = first.bestMove();
             print("\n>> first move {any}", .{move});
         } else {
             if (second.randomMove()) |m| {
