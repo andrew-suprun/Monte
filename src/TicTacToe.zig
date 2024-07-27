@@ -14,7 +14,14 @@ const Allocator = std.mem.Allocator;
 
 pub const explore_factor: f32 = 2;
 
-pub const Move = struct { x: u8, y: u8 };
+pub const Move = struct {
+    x: u8,
+    y: u8,
+
+    pub inline fn eql(self: @This(), other: @This()) bool {
+        return self.x == other.x and self.y == other.y;
+    }
+};
 
 pub fn init() Self {
     return .{
@@ -58,10 +65,8 @@ pub fn possibleMoves(self: Self, buf: []Move) []Move {
 }
 
 pub fn rollout(self: *Self) Player {
-    var rand = Prng.init(@intCast(std.time.milliTimestamp()));
-
     while (true) {
-        if (self.makeMove(self.selectRandomMove(&rand))) |winner| {
+        if (self.makeMove(self.randomMove())) |winner| {
             return winner;
         }
     }
@@ -75,14 +80,15 @@ inline fn previousPlayer(self: Self) Player {
     return if (self.moves_played % 2 == 1) .first else .second;
 }
 
-fn selectRandomMove(self: Self, rng: anytype) Move {
+pub fn randomMove(self: Self) Move {
+    var rand = Prng.init(@intCast(std.time.milliTimestamp()));
     var move = Move{ .x = 0, .y = 0 };
 
     var prob: u64 = 1;
     for (self.board, 0..) |row, y| {
         for (row, 0..) |place, x| {
             if (place == .none) {
-                const random = rng.next();
+                const random = rand.next();
                 if (random % prob == 0) {
                     move = Move{ .x = @intCast(x), .y = @intCast(y) };
                 }
@@ -93,18 +99,18 @@ fn selectRandomMove(self: Self, rng: anytype) Move {
     return move;
 }
 
-fn printBoard(self: Self) void {
+pub fn printBoard(self: Self, move: Move) void {
     for (0..3) |y| {
+        print("\n", .{});
         for (0..3) |x| {
             switch (self.board[y][x]) {
+                .second => if (move.x == x and move.y == y) print(" @", .{}) else print(" O", .{}),
                 .none => print(" .", .{}),
-                .first => print(" X", .{}),
-                .second => print(" O", .{}),
+                .first => if (move.x == x and move.y == y) print(" #", .{}) else print(" X", .{}),
             }
         }
-        print("\n", .{});
     }
-    print("------\n", .{});
+    print("\n------", .{});
 }
 
 test "Self" {

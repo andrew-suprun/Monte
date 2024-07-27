@@ -10,7 +10,14 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
         move_number: u32,
 
         pub const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
-        pub const Move = struct { player: Player, x: u8, y: u8 };
+        pub const Move = struct {
+            x: u8,
+            y: u8,
+
+            pub inline fn eql(self: @This(), other: @This()) bool {
+                return self.x == other.x and self.y == other.y;
+            }
+        };
         pub const max_moves: usize = 32;
         pub const explore_factor: f32 = 2;
 
@@ -36,13 +43,12 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
         }
 
         pub fn possibleMoves(self: Self, buf: []Move) []Move {
-            const player = playerFromStone(self.nextStone());
             var heap = Heap.init(self.scores);
 
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
                     if (self.board[y][x] == .none) {
-                        heap.add(.{ .player = player, .x = @intCast(x), .y = @intCast(y) });
+                        heap.add(.{ .x = @intCast(x), .y = @intCast(y) });
                     }
                 }
             }
@@ -55,15 +61,8 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             const y = move.y;
             const stone = self.nextStone();
             var check_scores = true;
-            const score = self.scores[y][x];
-            defer {
-                if (debug) {
-                    print("place {s} at {}:{} score={}\n", .{ strFromStone(stone), x, y, score });
-                    if (check_scores) self.testScores();
-                    self.printBoard(move);
-                    print("\n\n", .{});
-                }
-            }
+            defer if (debug and check_scores) self.testScores();
+
             {
                 const start_x: usize = @max(x, 5) - 5;
                 const end_x: usize = @min(x + 1, board_size - 5);
@@ -169,10 +168,8 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
         }
 
         pub fn rollout(self: *Self) Player {
-            var rand = Prng.init(@intCast(std.time.milliTimestamp()));
-
             while (true) {
-                if (self.selectRandomMove(&rand)) |place| {
+                if (self.randomMove()) |place| {
                     if (self.makeMove(place)) |winner| return winner;
                 } else {
                     return .none;
@@ -184,6 +181,10 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             return if ((self.move_number + 3) & 2 == 2) .black else .white;
         }
 
+        pub inline fn nextPlayer(self: Self) Player {
+            return playerFromStone(self.nextStone());
+        }
+
         inline fn playerFromStone(stone: Stone) Player {
             return switch (stone) {
                 .none => .none,
@@ -192,7 +193,9 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             };
         }
 
-        fn selectRandomMove(self: Self, rand: *Prng) ?Move {
+        pub fn randomMove(self: Self) ?Move {
+            var rand = Prng.init(@intCast(std.time.milliTimestamp()));
+
             var best_move = Move{ .x = 0, .y = 0 };
             var best_score: i32 = 0;
             var prob: u64 = 2;
@@ -390,7 +393,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             print("\n   |   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 |\n", .{});
         }
 
-        fn printBoard(self: Self, move: Move) void {
+        pub fn printBoard(self: Self, move: Move) void {
             print("\n   |", .{});
             for (0..board_size) |i| {
                 print("{:2}", .{i % 10});
@@ -438,19 +441,19 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
     };
 }
 
-const RowConfig = struct { x: usize, y: usize, count: usize };
-
 test "calcScores" {
+    const Player = enum(u2) { seconf, none, first };
     print("\n", .{});
-    const Game = C6(19);
+    const Game = C6(Player, 19);
     var c6 = Game.init();
-    _ = c6.makeMove(.{ .x = 18, .y = 18 });
+    _ = c6.makeMove(.{ .player = .first, .x = 18, .y = 18 });
     const result = c6.rollout();
     print("rollout result {any}\n", .{result});
 }
 
 test "possibleMoves" {
-    const Game = C6(19);
+    const Player = enum(u2) { seconf, none, first };
+    const Game = C6(Player, 19);
     var c6 = Game.init();
     var buf: [Game.max_moves]Game.Move = undefined;
     const moves = c6.possibleMoves(&buf);

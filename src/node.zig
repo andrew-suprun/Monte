@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub const Player = enum(u2) { second, none, first };
+pub const Player = enum(u8) { second, none, first };
 
 pub fn Node(comptime Game: type) type {
     return struct {
@@ -111,7 +111,7 @@ pub fn Node(comptime Game: type) type {
             return selected_child.?;
         }
 
-        pub fn selectBestMove(self: *Self, comptime player: Player) Game.Move {
+        pub fn bestMove(self: Self, comptime player: Player) Game.Move {
             var selected_child: ?*Self = null;
             var selected_score = -std.math.inf(f32);
             for (self.children) |*child| {
@@ -158,7 +158,7 @@ pub fn Node(comptime Game: type) type {
             }
         }
 
-        fn debugPrint(self: Self, comptime prefix: []const u8, player: Player) void {
+        pub fn debugPrint(self: Self, comptime prefix: []const u8, player: Player) void {
             print("\n--- " ++ prefix ++ " --- next player {s}", .{playerStr(player)});
             self.debugPrintIndented(0);
         }
