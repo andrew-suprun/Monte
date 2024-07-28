@@ -28,14 +28,15 @@ pub fn main() !void {
     second.deinit();
 
     var move: Game.Move = undefined;
-    print("\n{any}\n", .{@sizeOf(@import("node.zig").Node(Game))});
+    print("\nNode size is {d}.\n", .{@sizeOf(@import("node.zig").Node(Game))});
     while (true) {
-        const player = first.game.nextPlayer();
+        const player = first.root.move.next_player;
+        print("\nplayer {any}", .{player});
         if (player == .first) {
             for (1..10_000) |i| {
                 first.expand();
                 if (first.root.min_result == first.root.max_result) {
-                    print("\nexpands {d} | Winner {any}\n", .{ i, first.root.min_result });
+                    print("\nexpand {d} | Winner {any}\n", .{ i, first.root.min_result });
                     var buf: [10]Game.Move = undefined;
                     const line = first.bestLine(&buf);
                     print("\n best line", .{});
@@ -43,19 +44,21 @@ pub fn main() !void {
                         print(" - ", .{});
                         line_move.print();
                     }
-                    first.debugPrint("TREE", .first);
-                    break;
+                    return;
                 }
             }
             move = first.bestMove();
-            print("\n>> first move {any}", .{move});
+            print("\n>> first move ", .{});
+            move.print();
+            first.debugPrint("TREE");
         } else {
             if (second.randomMove()) |m| {
                 move = m;
-                print("\n>> second move {any}", .{move});
+                print("\n>> second move ", .{});
+                move.print();
             } else {
                 print("\nNo more moves", .{});
-                break;
+                return;
             }
         }
         first.commitMove(move);

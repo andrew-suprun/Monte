@@ -186,7 +186,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             return if ((self.move_number + 3) & 2 == 2) .black else .white;
         }
 
-        pub inline fn nextPlayer(self: Self) Player {
+        inline fn nextPlayer(self: Self) Player {
             return playerFromStone(self.nextStone());
         }
 

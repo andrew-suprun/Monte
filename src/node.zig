@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub const Player = enum(u2) {
+pub const Player = enum(u8) {
     second,
     none,
     first,
@@ -33,7 +33,7 @@ pub fn Node(comptime Game: type) type {
             n_rollouts: f32 = 1,
 
             fn debugPrint(self: Stats) void {
-                print("first: {d} | second: {d} | rollouts: {d}", .{
+                print("first: {d:3} | second: {d:3} | rollouts: {d:4}", .{
                     self.first_wins,
                     self.second_wins,
                     self.n_rollouts,
@@ -54,11 +54,10 @@ pub fn Node(comptime Game: type) type {
         }
 
         pub fn expandWithStats(self: *Self, game: *Game, allocator: Allocator, stats: *Stats) void {
-            const next_player = game.nextPlayer();
-            defer self.updateStats(next_player, stats);
+            defer self.updateStats(stats);
 
             if (self.children.len > 0) {
-                const child = self.selectChild(next_player);
+                const child = self.selectChild();
 
                 if (game.makeMove(child.move) == null) {
                     child.expandWithStats(game, allocator, stats);
@@ -82,7 +81,7 @@ pub fn Node(comptime Game: type) type {
                 if (move_result) |result| {
                     child.max_result = result;
                     child.min_result = result;
-                    if (move_result == next_player) {
+                    if (result == child.move.player) {
                         return;
                     }
                     continue;
@@ -103,16 +102,14 @@ pub fn Node(comptime Game: type) type {
             return;
         }
 
-        fn selectChild(self: *Self, player: Player) *Self {
+        fn selectChild(self: *Self) *Self {
             const big_n = @log(self.stats.n_rollouts);
 
             var selected_child: ?*Self = null;
             var selected_score = -std.math.inf(f32);
             for (self.children) |*child| {
                 if (child.max_result != child.min_result) {
-                    const score = if (player == .first) child.calcScore(.first) else child.calcScore(.second);
-
-                    const child_score = score + Game.explore_factor * @sqrt(big_n / child.stats.n_rollouts);
+                    const child_score = child.calcScore() + Game.explore_factor * @sqrt(big_n / child.stats.n_rollouts);
                     if (selected_child == null or selected_score < child_score) {
                         selected_child = child;
                         selected_score = child_score;
@@ -123,24 +120,55 @@ pub fn Node(comptime Game: type) type {
             return selected_child.?;
         }
 
-        pub fn bestMove(self: Self, game: Game) Game.Move {
-            const player = game.nextPlayer();
+        pub fn bestMove(self: Self) Game.Move {
+            const player = self.move.next_player;
+
+            // {
+            //     print("\n>> best move from: ", .{});
+            //     self.move.print();
+            //     print(" | child ", .{});
+            //     player.print();
+            // }
+
             var selected_child: ?*Self = null;
             var selected_score = -std.math.inf(f32);
             for (self.children) |*child| {
                 var score = -std.math.inf(f32);
                 if (player == .first) {
-                    if (child.min_result == .first)
+                    if (child.min_result == .first) {
+                        // {
+                        //     print("\n<< best move: ", .{});
+                        //     child.move.print();
+                        //     print(" ### FIRST WINS ###", .{});
+                        // }
                         return child.move;
+                    }
                     score = (child.stats.first_wins - child.stats.second_wins) / child.stats.n_rollouts;
                     if (score < 0 and child.min_result == .none)
                         score = 0;
                 } else {
-                    if (child.max_result == .second)
+                    if (child.max_result == .second) {
+                        // {
+                        //     print("\n<< best move: ", .{});
+                        //     self.move.print();
+                        //     print(" ### SECOND WINS ###", .{});
+                        // }
                         return child.move;
+                    }
                     score = (child.stats.second_wins - child.stats.first_wins) / child.stats.n_rollouts;
                     if (score < 0 and child.max_result == .none)
                         score = 0;
+
+                    // {
+                    //     print("\n  >> child: ", .{});
+                    //     child.move.print();
+                    //     print(" | f {d:3} | s {d:3} | r {d:3} | score {d:.3}", .{
+                    //         child.stats.first_wins,
+                    //         child.stats.second_wins,
+                    //         child.stats.n_rollouts,
+                    //         score,
+                    //     });
+                    // }
                 }
                 if (selected_child == null or selected_score < score) {
                     selected_child = child;
@@ -148,22 +176,29 @@ pub fn Node(comptime Game: type) type {
                 }
             }
 
+            // {
+            //     print("\n<< best move from: ", .{});
+            //     self.move.print();
+            //     print("\n  << child: ", .{});
+            //     selected_child.?.move.print();
+            //     print(" | score {d}", .{selected_score});
+            // }
+
             return selected_child.?.move;
         }
 
-        inline fn calcScore(self: Self, comptime player: Player) f32 {
-            const sum = if (player == .first)
-                self.stats.first_wins - self.stats.second_wins
+        inline fn calcScore(self: Self) f32 {
+            return if (self.move.player == .first)
+                self.stats.first_wins - self.stats.second_wins / self.stats.n_rollouts
             else
-                self.stats.second_wins - self.stats.first_wins;
-            return sum / self.stats.n_rollouts;
+                self.stats.second_wins - self.stats.first_wins / self.stats.n_rollouts;
         }
 
-        fn updateStats(self: *Self, player: Player, stats: *Stats) void {
+        fn updateStats(self: *Self, stats: *Stats) void {
             self.stats.first_wins += stats.first_wins;
             self.stats.second_wins += stats.second_wins;
             self.stats.n_rollouts += stats.n_rollouts;
-            if (player == .first) {
+            if (self.move.player == .first) {
                 self.max_result = .second;
                 self.min_result = .second;
 
@@ -182,26 +217,33 @@ pub fn Node(comptime Game: type) type {
             }
         }
 
-        pub fn debugPrint(self: Self, comptime prefix: []const u8, player: Player) void {
-            print("\n--- " ++ prefix ++ " --- next player ", .{});
-            player.print();
-            self.debugPrintIndented(0);
+        pub fn debugPrint(self: Self, comptime prefix: []const u8) void {
+            print("\n--- " ++ prefix ++ " ---", .{});
+            self.debugPrintRecursive(0);
         }
 
+        fn debugPrintRecursive(self: Self, level: usize) void {
+            if (self.children.len == 0) return;
+            const move = self.bestMove();
+            for (self.children) |child| {
+                child.debugPrintIndented(level + 1);
+                if (child.move.eql(move)) {
+                    child.debugPrintRecursive(level + 1);
+                }
+            }
+        }
         fn debugPrintIndented(self: Self, level: usize) void {
             print("\n", .{});
-            for (0..level) |_| print("| ", .{});
-            print("| lvl{d} ", .{level});
+            for (1..level) |_| print("| ", .{});
+            print("lvl{d} ", .{level});
             self.move.print();
             print(" | ", .{});
             self.stats.debugPrint();
-            print(" | max ", .{});
+            print(" | score: {d:6.3}", .{self.calcScore()});
+            print(" | max: ", .{});
             self.max_result.print();
-            print(" | min ", .{});
+            print(" | min: ", .{});
             self.min_result.print();
-            for (self.children) |child| {
-                child.debugPrintIndented(level + 1);
-            }
         }
     };
 }
@@ -213,38 +255,17 @@ test Node {
     // const Game = @import("TicTacToe.zig");
     // var root = Node(Game){};
 
-    // const Game = @import("connect6.zig").C6(19);
-    // var root = Node(Game){};
+    const Game = @import("connect6.zig").C6(19);
+    var root = Node(Game){};
 
-    // defer root.deinit(std.testing.allocator);
+    defer root.deinit(std.testing.allocator);
 
-    // for (0..100) |i| {
-    //     var game = Game.init();
-    //     print("\nEXPAND {d} | player {s}", .{ i, playerStr(game.nextPlayer()) });
-    //     _ = root.expand(&game, std.testing.allocator);
-    //     root.debugPrint("", .first);
-    //     if (root.min_result == root.max_result) break;
-    // }
-
-    const M = struct {
-        player: u8,
-        x: u8,
-        y: u8,
-    };
-
-    const Stats = struct {
-        first_wins: f32 = 0,
-        second_wins: f32 = 0,
-        n_rollouts: f32 = 1,
-    };
-
-    const N = struct {
-        move: M = undefined,
-        children: []@This() = &[_]@This(){},
-        stats: Stats = Stats{},
-        max_result: Player = .first,
-        min_result: Player = .second,
-    };
-
-    print("\nsize {d}\n", .{@sizeOf(N)});
+    for (0..100) |i| {
+        var game = Game.init();
+        print("\nEXPAND {d} | player ", .{i});
+        root.move.player.print();
+        _ = root.expand(&game, std.testing.allocator);
+        root.debugPrint("", .first);
+        if (root.min_result == root.max_result) break;
+    }
 }

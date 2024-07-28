@@ -16,7 +16,7 @@ pub fn SearchTree(comptime Game: type) type {
 
         pub fn init(allocator: Allocator) Self {
             return Self{
-                .root = Node{},
+                .root = Node{ .move = Game.zero_move },
                 .game = Game.init(),
                 .allocator = allocator,
             };
@@ -35,22 +35,23 @@ pub fn SearchTree(comptime Game: type) type {
         }
 
         pub fn bestMove(self: Self) Game.Move {
-            return self.root.bestMove(self.game);
+            return self.root.bestMove();
         }
 
         pub fn bestLine(self: Self, buf: []Game.Move) []Game.Move {
-            var node = self.root;
             var game = self.game;
+            var node = self.root;
             for (0..buf.len) |i| {
                 if (node.children.len == 0) {
                     return buf[0..i];
                 }
-                const move = node.bestMove(game);
+                const move = node.bestMove();
                 for (node.children) |child| {
                     if (child.move.eql(move)) {
                         buf[i] = move;
                         node = child;
-                        _ = game.makeMove(move);
+                        _ = game.makeMove(node.move);
+                        game.printBoard(node.move);
                         break;
                     }
                 } else {
@@ -60,8 +61,8 @@ pub fn SearchTree(comptime Game: type) type {
             return buf;
         }
 
-        pub fn debugPrint(self: Self, comptime prefix: []const u8, player: Player) void {
-            self.root.debugPrint(prefix, player);
+        pub fn debugPrint(self: Self, comptime prefix: []const u8) void {
+            self.root.debugPrint(prefix);
         }
 
         pub fn randomMove(self: Self) ?Game.Move {
