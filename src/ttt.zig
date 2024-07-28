@@ -24,9 +24,8 @@ pub fn TicTacToe(comptime Player: type) type {
             }
 
             pub fn print(self: @This()) void {
-                std.debug.print("[", .{});
                 self.player.print();
-                std.debug.print(":{d}:{d}]", .{ self.x, self.y });
+                std.debug.print("{d}{d}", .{ self.x, self.y });
             }
         };
 
@@ -45,22 +44,21 @@ pub fn TicTacToe(comptime Player: type) type {
         };
 
         pub fn makeMove(self: *Self, move: Move) ?Player {
-            defer self.moves_played += 1;
-            const player = self.nextPlayer();
-            self.board[move.y][move.x] = player;
+            self.moves_played += 1;
+            self.board[move.y][move.x] = move.player;
             return self.outcome(move);
         }
 
         fn outcome(self: Self, move: Move) ?Player {
-            if (self.moves_played == 9) return .none;
             const x = move.x;
             const y = move.y;
-            const turn = self.nextPlayer();
+            const turn = move.player;
             if ((self.board[0][x] == turn and self.board[1][x] == turn and self.board[2][x] == turn) or
                 (self.board[y][0] == turn and self.board[y][1] == turn and self.board[y][2] == turn) or
                 (self.board[0][0] == turn and self.board[1][1] == turn and self.board[2][2] == turn) or
                 (self.board[0][2] == turn and self.board[1][1] == turn and self.board[2][0] == turn)) return turn;
 
+            if (self.moves_played == 9) return .none;
             return null;
         }
 

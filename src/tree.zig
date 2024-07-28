@@ -51,7 +51,7 @@ pub fn SearchTree(comptime Game: type) type {
                         buf[i] = move;
                         node = child;
                         _ = game.makeMove(node.move);
-                        game.printBoard(node.move);
+                        // game.printBoard(node.move);
                         break;
                     }
                 } else {
@@ -73,8 +73,8 @@ pub fn SearchTree(comptime Game: type) type {
             self.game.printBoard(move);
         }
 
-        pub fn commitMove(self: *Self, move: Game.Move) void {
-            _ = self.game.makeMove(move);
+        pub fn commitMove(self: *Self, move: Game.Move) ?Player {
+            if (self.game.makeMove(move)) |winner| return winner;
             var new_root: ?Node = null;
             for (self.root.children) |*child| {
                 if (child.move.eql(move)) {
@@ -90,6 +90,7 @@ pub fn SearchTree(comptime Game: type) type {
                 self.root = Node{};
                 self.root.move = move;
             }
+            return null;
         }
     };
 }

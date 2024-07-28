@@ -1,7 +1,9 @@
 const std = @import("std");
 const math = std.math;
-const print = std.debug.print;
 const Allocator = std.mem.Allocator;
+const print = std.debug.print;
+const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
+
 const tree = @import("tree.zig");
 // const Game = @import("connect6.zig").C6(tree.Player, 19);
 // const Game = @import("RandomGame.zig");
@@ -28,41 +30,34 @@ pub fn main() !void {
     second.deinit();
 
     var move: Game.Move = undefined;
-    print("\nNode size is {d}.\n", .{@sizeOf(@import("node.zig").Node(Game))});
     while (true) {
         const player = first.root.move.next_player;
-        print("\nplayer {any}", .{player});
         if (player == .first) {
-            for (1..10_000) |i| {
-                first.expand();
+            // first.debugPrint("TREE.1");
+            for (0..10_000) |i| {
                 if (first.root.min_result == first.root.max_result) {
-                    print("\nexpand {d} | Winner {any}\n", .{ i, first.root.min_result });
-                    var buf: [10]Game.Move = undefined;
-                    const line = first.bestLine(&buf);
-                    print("\n best line", .{});
-                    for (line) |line_move| {
-                        print(" - ", .{});
-                        line_move.print();
-                    }
+                    print("\nexpand {d} | Result {any}\n", .{ i, first.root.min_result });
+                    print("\n selected move: ", .{});
+                    first.bestMove().print();
+
+                    // first.debugPrint("TREE");
+                    if (debug) first.root.debugSelfCheck();
                     return;
                 }
+                first.expand();
             }
             move = first.bestMove();
-            print("\n>> first move ", .{});
-            move.print();
-            first.debugPrint("TREE");
         } else {
             if (second.randomMove()) |m| {
                 move = m;
-                print("\n>> second move ", .{});
-                move.print();
             } else {
                 print("\nNo more moves", .{});
-                return;
             }
         }
-        first.commitMove(move);
-        second.commitMove(move);
+        if (first.commitMove(move)) |winner| {
+            print("\nWinner {any}\n", .{winner});
+        }
+        _ = second.commitMove(move);
         first.printBoard(move);
     }
 }

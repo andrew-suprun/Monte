@@ -198,7 +198,7 @@ pub fn Node(comptime Game: type) type {
             self.stats.first_wins += stats.first_wins;
             self.stats.second_wins += stats.second_wins;
             self.stats.n_rollouts += stats.n_rollouts;
-            if (self.move.player == .first) {
+            if (self.move.next_player == .first) {
                 self.max_result = .second;
                 self.min_result = .second;
 
@@ -217,24 +217,50 @@ pub fn Node(comptime Game: type) type {
             }
         }
 
+        pub fn debugSelfCheck(self: Self) void {
+            const player = self.move.next_player;
+            var max: Player = undefined;
+            var min: Player = undefined;
+
+            if (self.children.len == 0) return;
+
+            if (player == .first) {
+                max = .second;
+                min = .second;
+            } else {
+                max = .first;
+                min = .first;
+            }
+            if (player == .first) {
+                for (self.children) |child| {
+                    max = @enumFromInt(@max(@intFromEnum(max), @intFromEnum(child.max_result)));
+                    min = @enumFromInt(@max(@intFromEnum(min), @intFromEnum(child.min_result)));
+                }
+            } else {
+                for (self.children) |child| {
+                    max = @enumFromInt(@min(@intFromEnum(max), @intFromEnum(child.max_result)));
+                    min = @enumFromInt(@min(@intFromEnum(min), @intFromEnum(child.min_result)));
+                }
+            }
+            if (self.max_result != max or self.min_result != min) {
+                self.debugPrint("FAILURE");
+                std.debug.panic("", .{});
+            }
+
+            for (self.children) |child| {
+                if (self.children.len > 0)
+                    child.debugSelfCheck();
+            }
+        }
+
         pub fn debugPrint(self: Self, comptime prefix: []const u8) void {
             print("\n--- " ++ prefix ++ " ---", .{});
             self.debugPrintRecursive(0);
         }
 
         fn debugPrintRecursive(self: Self, level: usize) void {
-            if (self.children.len == 0) return;
-            const move = self.bestMove();
-            for (self.children) |child| {
-                child.debugPrintIndented(level + 1);
-                if (child.move.eql(move)) {
-                    child.debugPrintRecursive(level + 1);
-                }
-            }
-        }
-        fn debugPrintIndented(self: Self, level: usize) void {
             print("\n", .{});
-            for (1..level) |_| print("| ", .{});
+            for (0..level) |_| print("| ", .{});
             print("lvl{d} ", .{level});
             self.move.print();
             print(" | ", .{});
@@ -244,6 +270,11 @@ pub fn Node(comptime Game: type) type {
             self.max_result.print();
             print(" | min: ", .{});
             self.min_result.print();
+            print(" | children {d}", .{self.children.len});
+
+            for (self.children) |child| {
+                child.debugPrintRecursive(level + 1);
+            }
         }
     };
 }
