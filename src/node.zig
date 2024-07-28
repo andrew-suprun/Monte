@@ -189,9 +189,9 @@ pub fn Node(comptime Game: type) type {
 
         inline fn calcScore(self: Self) f32 {
             return if (self.move.player == .first)
-                self.stats.first_wins - self.stats.second_wins / self.stats.n_rollouts
+                (self.stats.first_wins - self.stats.second_wins) / self.stats.n_rollouts
             else
-                self.stats.second_wins - self.stats.first_wins / self.stats.n_rollouts;
+                (self.stats.second_wins - self.stats.first_wins) / self.stats.n_rollouts;
         }
 
         fn updateStats(self: *Self, stats: *Stats) void {
