@@ -16,7 +16,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
 
         pub fn init(allocator: Allocator) Self {
             return Self{
-                .root = Node{ .move = Game.zero_move },
+                .root = Node{ .move = std.mem.zeroInit(Game.Move, .{}) },
                 .game = Game.init(),
                 .allocator = allocator,
             };

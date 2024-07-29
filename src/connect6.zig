@@ -11,15 +11,19 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
 
         pub const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
         pub const Move = struct {
+            player: Player,
+            next_player: Player,
             x: u8,
             y: u8,
 
             pub inline fn eql(self: @This(), other: @This()) bool {
-                return self.x == other.x and self.y == other.y;
+                return self.player == other.player and self.x == other.x and self.y == other.y;
             }
 
             pub fn print(self: @This()) void {
-                std.debug.print("[{d}:{d}]", .{ self.x, self.y });
+                std.debug.print("[", .{});
+                self.player.print();
+                std.debug.print(":{d}:{d}]", .{ self.x, self.y });
             }
         };
 

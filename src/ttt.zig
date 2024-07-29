@@ -36,13 +36,6 @@ pub fn TicTacToe(comptime Player: type) type {
             };
         }
 
-        pub var zero_move: Move = Move{
-            .player = .second,
-            .next_player = .first,
-            .x = 255,
-            .y = 255,
-        };
-
         pub fn makeMove(self: *Self, move: Move) ?Player {
             self.moves_played += 1;
             self.board[move.y][move.x] = move.player;
@@ -90,7 +83,7 @@ pub fn TicTacToe(comptime Player: type) type {
             }
         }
 
-        pub inline fn nextPlayer(self: Self) Player {
+        inline fn nextPlayer(self: Self) Player {
             return if (self.moves_played % 2 == 0) .first else .second;
         }
 
@@ -98,7 +91,7 @@ pub fn TicTacToe(comptime Player: type) type {
             return if (self.moves_played % 2 == 1) .first else .second;
         }
 
-        pub fn randomMove(self: Self) Move {
+        fn randomMove(self: Self) Move {
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
             const player = self.nextPlayer();
             const next_player = self.previousPlayer();
