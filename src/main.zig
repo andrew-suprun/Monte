@@ -20,7 +20,7 @@ pub fn main() !void {
 
     var move: Game.Move = undefined;
     while (true) {
-        const player = first.root.move.next_player;
+        const player = first.game.nextPlayer();
         const expantions: usize = if (player == .first) 10 else 10;
         var engine = if (player == .first) &first else &second;
         for (0..expantions) |_| {
@@ -32,7 +32,7 @@ pub fn main() !void {
                 print("\n", .{});
 
                 // engine.debugPrint("TREE");
-                if (debug) engine.root.debugSelfCheck();
+                if (debug) engine.root.debugSelfCheck(engine.game);
                 return;
             }
             engine.expand();

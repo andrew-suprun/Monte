@@ -35,7 +35,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
         }
 
         pub fn bestMove(self: Self) Game.Move {
-            return self.root.bestMove();
+            return self.root.bestMove(self.game);
         }
 
         pub fn bestLine(self: Self, buf: []Game.Move) []Game.Move {

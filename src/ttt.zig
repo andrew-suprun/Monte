@@ -13,19 +13,15 @@ pub fn TicTacToe(comptime Player: type) type {
         pub const max_moves: usize = 9;
 
         pub const Move = struct {
-            player: Player,
-            next_player: Player,
             x: u8,
             y: u8,
 
             pub inline fn eql(self: @This(), other: @This()) bool {
-                return self.player == other.player and self.x == other.x and self.y == other.y;
+                return self.x == other.x and self.y == other.y;
             }
 
             pub fn print(self: @This()) void {
-                std.debug.print("[", .{});
-                self.player.print();
-                std.debug.print(":{d}:{d}]", .{ self.x, self.y });
+                std.debug.print("[{d}:{d}]", .{ self.x, self.y });
             }
         };
 
@@ -37,15 +33,15 @@ pub fn TicTacToe(comptime Player: type) type {
         }
 
         pub fn makeMove(self: *Self, move: Move) ?Player {
+            self.board[move.y][move.x] = self.nextPlayer();
             self.moves_played += 1;
-            self.board[move.y][move.x] = move.player;
             return self.outcome(move);
         }
 
         fn outcome(self: Self, move: Move) ?Player {
             const x = move.x;
             const y = move.y;
-            const turn = move.player;
+            const turn = self.previousPlayer();
             if ((self.board[0][x] == turn and self.board[1][x] == turn and self.board[2][x] == turn) or
                 (self.board[y][0] == turn and self.board[y][1] == turn and self.board[y][2] == turn) or
                 (self.board[0][0] == turn and self.board[1][1] == turn and self.board[2][2] == turn) or
@@ -56,15 +52,11 @@ pub fn TicTacToe(comptime Player: type) type {
         }
 
         pub fn possibleMoves(self: Self, buf: []Move) []Move {
-            const player = self.nextPlayer();
-            const next_player = self.previousPlayer();
             var idx: usize = 0;
             for (self.board, 0..) |row, y| {
                 for (row, 0..) |place, x| {
                     if (place == .none) {
                         buf[idx] = Move{
-                            .player = player,
-                            .next_player = next_player,
                             .x = @intCast(x),
                             .y = @intCast(y),
                         };
@@ -83,19 +75,17 @@ pub fn TicTacToe(comptime Player: type) type {
             }
         }
 
-        inline fn nextPlayer(self: Self) Player {
+        pub inline fn nextPlayer(self: Self) Player {
             return if (self.moves_played % 2 == 0) .first else .second;
         }
 
-        inline fn previousPlayer(self: Self) Player {
+        pub inline fn previousPlayer(self: Self) Player {
             return if (self.moves_played % 2 == 1) .first else .second;
         }
 
         fn randomMove(self: Self) Move {
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
-            const player = self.nextPlayer();
-            const next_player = self.previousPlayer();
-            var move = Move{ .player = player, .next_player = next_player, .x = 0, .y = 0 };
+            var move = Move{ .x = 0, .y = 0 };
 
             var prob: u64 = 1;
             for (self.board, 0..) |row, y| {
@@ -104,8 +94,6 @@ pub fn TicTacToe(comptime Player: type) type {
                         const random = rand.next();
                         if (random % prob == 0) {
                             move = Move{
-                                .player = player,
-                                .next_player = next_player,
                                 .x = @intCast(x),
                                 .y = @intCast(y),
                             };
