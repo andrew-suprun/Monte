@@ -130,11 +130,12 @@ pub fn Node(comptime Game: type) type {
             //     player.print();
             // }
 
-            var selected_child: ?*Self = null;
+            var selected_child: *Self = &self.children[0];
             var selected_score = -std.math.inf(f32);
             for (self.children) |*child| {
                 var score = -std.math.inf(f32);
                 if (player == .first) {
+                    if (child.max_result == .second) continue;
                     if (child.min_result == .first) {
                         // {
                         //     print("\n<< best move: ", .{});
@@ -147,6 +148,7 @@ pub fn Node(comptime Game: type) type {
                     if (score < 0 and child.min_result == .none)
                         score = 0;
                 } else {
+                    if (child.min_result == .first) continue;
                     if (child.max_result == .second) {
                         // {
                         //     print("\n<< best move: ", .{});
@@ -170,7 +172,7 @@ pub fn Node(comptime Game: type) type {
                     //     });
                     // }
                 }
-                if (selected_child == null or selected_score < score) {
+                if (selected_score < score) {
                     selected_child = child;
                     selected_score = score;
                 }
@@ -184,7 +186,7 @@ pub fn Node(comptime Game: type) type {
             //     print(" | score {d}", .{selected_score});
             // }
 
-            return selected_child.?.move;
+            return selected_child.move;
         }
 
         inline fn calcScore(self: Self) f32 {

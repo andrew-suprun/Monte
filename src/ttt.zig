@@ -24,8 +24,9 @@ pub fn TicTacToe(comptime Player: type) type {
             }
 
             pub fn print(self: @This()) void {
+                std.debug.print("[", .{});
                 self.player.print();
-                std.debug.print("{d}{d}", .{ self.x, self.y });
+                std.debug.print(":{d}:{d}]", .{ self.x, self.y });
             }
         };
 
@@ -138,4 +139,48 @@ pub fn TicTacToe(comptime Player: type) type {
             print("\n------", .{});
         }
     };
+}
+
+pub const P = enum(u8) {
+    second,
+    none,
+    first,
+
+    pub fn print(player: P) void {
+        const str = switch (player) {
+            .first => "first",
+            .second => "second",
+            .none => "none",
+        };
+        std.debug.print("{s}", .{str});
+    }
+};
+
+test {
+    var game = TicTacToe(P).init();
+    const moves = [_]TicTacToe(P).Move{
+        .{ .player = .first, .next_player = .second, .x = 1, .y = 1 },
+        .{ .player = .second, .next_player = .first, .x = 0, .y = 0 },
+        .{ .player = .first, .next_player = .second, .x = 0, .y = 2 },
+        .{ .player = .second, .next_player = .first, .x = 2, .y = 0 },
+        .{ .player = .first, .next_player = .second, .x = 1, .y = 0 },
+        .{ .player = .second, .next_player = .first, .x = 1, .y = 2 },
+        .{ .player = .first, .next_player = .second, .x = 0, .y = 1 },
+        .{ .player = .second, .next_player = .first, .x = 2, .y = 1 },
+        .{ .player = .first, .next_player = .second, .x = 2, .y = 2 },
+    };
+
+    for (moves, 1..) |move, i| {
+        const result = game.makeMove(move);
+        print("\nmove {d}:\n------\n", .{i});
+        game.printBoard(move);
+        if (result) |r| {
+            print("\n", .{});
+            r.print();
+            try std.testing.expect(i == 9);
+            try std.testing.expect(result == .none);
+            break;
+        }
+    }
+    print("\n", .{});
 }

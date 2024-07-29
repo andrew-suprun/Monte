@@ -32,30 +32,25 @@ pub fn main() !void {
     var move: Game.Move = undefined;
     while (true) {
         const player = first.root.move.next_player;
-        if (player == .first) {
-            // first.debugPrint("TREE.1");
-            for (0..10_000) |i| {
-                if (first.root.min_result == first.root.max_result) {
-                    print("\nexpand {d} | Result {any}\n", .{ i, first.root.min_result });
-                    print("\n selected move: ", .{});
-                    first.bestMove().print();
+        const expantions: usize = if (player == .first) 2 else 10;
+        var engine = if (player == .first) first else second;
+        for (0..expantions) |_| {
+            if (engine.root.min_result == engine.root.max_result) {
+                print("\nWinner: ", .{});
+                engine.root.min_result.print();
+                print(" | Selected move: ", .{});
+                engine.bestMove().print();
 
-                    // first.debugPrint("TREE");
-                    if (debug) first.root.debugSelfCheck();
-                    return;
-                }
-                first.expand();
+                // engine.debugPrint("TREE");
+                if (debug) engine.root.debugSelfCheck();
+                return;
             }
-            move = first.bestMove();
-        } else {
-            if (second.randomMove()) |m| {
-                move = m;
-            } else {
-                print("\nNo more moves", .{});
-            }
+            engine.expand();
         }
+        move = engine.bestMove();
         if (first.commitMove(move)) |winner| {
             print("\nWinner {any}\n", .{winner});
+            return;
         }
         _ = second.commitMove(move);
         first.printBoard(move);
@@ -63,6 +58,6 @@ pub fn main() !void {
 }
 
 test {
-    std.testing.refAllDecls(@This());
+    // std.testing.refAllDecls(@This());
     // std.testing.refAllDeclsRecursive(@This()); ???
 }
