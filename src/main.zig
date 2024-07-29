@@ -32,8 +32,8 @@ pub fn main() !void {
     var move: Game.Move = undefined;
     while (true) {
         const player = first.root.move.next_player;
-        const expantions: usize = if (player == .first) 2 else 10;
-        var engine = if (player == .first) first else second;
+        const expantions: usize = if (player == .first) 10 else 10;
+        var engine = if (player == .first) &first else &second;
         for (0..expantions) |_| {
             if (engine.root.min_result == engine.root.max_result) {
                 print("\nWinner: ", .{});
