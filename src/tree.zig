@@ -5,14 +5,14 @@ const print = std.debug.print;
 
 pub const Player = @import("node.zig").Player;
 
-pub fn SearchTree(comptime Game: type) type {
-    const Node = @import("node.zig").Node(Game);
+pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
+    const Node = @import("node.zig").Node(Game, explore_factor);
     return struct {
         root: Node,
         game: Game,
         allocator: Allocator,
 
-        const Self = SearchTree(Game);
+        const Self = SearchTree(Game, explore_factor);
 
         pub fn init(allocator: Allocator) Self {
             return Self{

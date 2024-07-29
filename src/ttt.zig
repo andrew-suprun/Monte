@@ -10,7 +10,6 @@ pub fn TicTacToe(comptime Player: type) type {
 
         const Self = @This();
 
-        pub const explore_factor: f32 = 2;
         pub const max_moves: usize = 9;
 
         pub const Move = struct {

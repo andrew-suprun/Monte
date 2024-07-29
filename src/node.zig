@@ -17,7 +17,7 @@ pub const Player = enum(u8) {
     }
 };
 
-pub fn Node(comptime Game: type) type {
+pub fn Node(comptime Game: type, comptime explore_factor: f32) type {
     return struct {
         move: Game.Move = undefined,
         children: []Self = &[_]Self{},
@@ -25,7 +25,7 @@ pub fn Node(comptime Game: type) type {
         max_result: Player = .first,
         min_result: Player = .second,
 
-        const Self = Node(Game);
+        const Self = Node(Game, explore_factor);
 
         const Stats = struct {
             first_wins: f32 = 0,
@@ -109,7 +109,7 @@ pub fn Node(comptime Game: type) type {
             var selected_score = -std.math.inf(f32);
             for (self.children) |*child| {
                 if (child.max_result != child.min_result) {
-                    const child_score = child.calcScore() + Game.explore_factor * @sqrt(big_n / child.stats.n_rollouts);
+                    const child_score = child.calcScore() + explore_factor * @sqrt(big_n / child.stats.n_rollouts);
                     if (selected_child == null or selected_score < child_score) {
                         selected_child = child;
                         selected_score = child_score;

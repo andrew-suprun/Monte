@@ -6,27 +6,16 @@ const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const tree = @import("tree.zig");
 // const Game = @import("connect6.zig").C6(tree.Player, 19);
-// const Game = @import("RandomGame.zig");
 const Game = @import("ttt.zig").TicTacToe(tree.Player);
-
-// pub fn main() !void {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-
-//     var search_tree = tree.SearchTree(c6.C6(19)).init();
-//     defer search_tree.deinit(allocator);
-
-//     try search_tree.expand(allocator);
-// }
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var first = tree.SearchTree(Game).init(allocator);
+    var first = tree.SearchTree(Game, 2).init(allocator);
     first.deinit();
 
-    var second = tree.SearchTree(Game).init(allocator);
+    var second = tree.SearchTree(Game, 2).init(allocator);
     second.deinit();
 
     var move: Game.Move = undefined;
@@ -40,6 +29,7 @@ pub fn main() !void {
                 engine.root.min_result.print();
                 print(" | Selected move: ", .{});
                 engine.bestMove().print();
+                print("\n", .{});
 
                 // engine.debugPrint("TREE");
                 if (debug) engine.root.debugSelfCheck();

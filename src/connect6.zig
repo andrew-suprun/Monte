@@ -24,7 +24,6 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
         };
 
         pub const max_moves: usize = 32;
-        pub const explore_factor: f32 = 2;
 
         const Self = @This();
         const Board = [board_size][board_size]Stone;
