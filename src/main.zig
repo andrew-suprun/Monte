@@ -25,9 +25,8 @@ pub fn main() !void {
         var engine = if (player == .first) &first else &second;
         for (0..expantions) |_| {
             if (engine.root.min_result == engine.root.max_result) {
-                print("\nWinner: ", .{});
-                engine.root.min_result.print();
-                print(" | Selected move: ", .{});
+                print("\nWinner: {s}", .{Game.playerStr(engine.root.min_result)});
+                print(" | Selected move: {s}:", .{Game.playerStr(engine.game.nextPlayer())});
                 engine.bestMove().print();
                 print("\n", .{});
 

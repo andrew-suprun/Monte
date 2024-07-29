@@ -21,7 +21,7 @@ pub fn TicTacToe(comptime Player: type) type {
             }
 
             pub fn print(self: @This()) void {
-                std.debug.print("[{d}:{d}]", .{ self.x, self.y });
+                std.debug.print("{d}:{d}", .{ self.x, self.y });
             }
         };
 
@@ -117,6 +117,14 @@ pub fn TicTacToe(comptime Player: type) type {
                 }
             }
             print("\n------", .{});
+        }
+
+        pub fn playerStr(player: Player) []const u8 {
+            return switch (player) {
+                .first => "X",
+                .second => "O",
+                .none => ".",
+            };
         }
     };
 }

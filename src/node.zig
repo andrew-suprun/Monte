@@ -2,20 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub const Player = enum(u8) {
-    second,
-    none,
-    first,
-
-    pub fn print(player: Player) void {
-        const str = switch (player) {
-            .first => "first",
-            .second => "second",
-            .none => "none",
-        };
-        std.debug.print("{s}", .{str});
-    }
-};
+pub const Player = enum(u8) { second, none, first };
 
 pub fn Node(comptime Game: type, comptime explore_factor: f32) type {
     return struct {
@@ -243,10 +230,8 @@ pub fn Node(comptime Game: type, comptime explore_factor: f32) type {
             print(" | ", .{});
             self.stats.debugPrint();
             print(" | score: {d:6.3}", .{self.calcScore(game)});
-            print(" | max: ", .{});
-            self.max_result.print();
-            print(" | min: ", .{});
-            self.min_result.print();
+            print(" | max: {s}", .{Game.playerStr(self.max_result)});
+            print(" | min: {s}", .{Game.playerStr(self.min_result)});
             print(" | children {d}", .{self.children.len});
 
             for (self.children) |child| {
