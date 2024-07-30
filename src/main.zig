@@ -5,8 +5,8 @@ const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const tree = @import("tree.zig");
-// const Game = @import("connect6.zig").C6(tree.Player, 19);
-const Game = @import("ttt.zig").TicTacToe(tree.Player);
+const Game = @import("connect6.zig").C6(tree.Player, 19);
+// const Game = @import("ttt.zig").TicTacToe(tree.Player);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -19,30 +19,41 @@ pub fn main() !void {
     second.deinit();
 
     var move: Game.Move = undefined;
-    while (true) {
+    main_loop: while (true) {
         const player = first.game.nextPlayer();
-        const expantions: usize = if (player == .first) 10 else 10;
+        const expantions: usize = if (player == .first) 1000 else 0;
         var engine = if (player == .first) &first else &second;
         for (0..expantions) |_| {
             if (engine.root.min_result == engine.root.max_result) {
                 print("\nWinner: {s}", .{Game.playerStr(engine.root.min_result)});
-                print(" | Selected move: {s}:", .{Game.playerStr(engine.game.nextPlayer())});
-                engine.bestMove().print();
-                print("\n", .{});
 
                 // engine.debugPrint("TREE");
-                if (debug) engine.root.debugSelfCheck(engine.game);
-                return;
+                if (debug) engine.debugSelfCheck();
+                break :main_loop;
             }
             engine.expand();
         }
-        move = engine.bestMove();
+        if (player == .first) {
+            move = engine.bestMove();
+        } else {
+            move = engine.game.rolloutMove();
+        }
         if (first.commitMove(move)) |winner| {
             print("\nWinner {any}\n", .{winner});
-            return;
+            break :main_loop;
         }
         _ = second.commitMove(move);
-        first.printBoard(move);
+        first.game.printBoard(move);
+    }
+
+    print("\n\n########################\n", .{});
+
+    for (0..3) |_| {
+        // while (first.root.children.len > 0) {
+        move = first.bestMove();
+        print("\nmove {any}", .{move});
+        _ = first.commitMove(move);
+        first.game.printBoard(move);
     }
 }
 

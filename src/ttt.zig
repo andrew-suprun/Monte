@@ -67,14 +67,6 @@ pub fn TicTacToe(comptime Player: type) type {
             return buf[0..idx];
         }
 
-        pub fn rollout(self: *Self) Player {
-            while (true) {
-                if (self.makeMove(self.randomMove())) |winner| {
-                    return winner;
-                }
-            }
-        }
-
         pub inline fn nextPlayer(self: Self) Player {
             return if (self.moves_played % 2 == 0) .first else .second;
         }
@@ -83,7 +75,7 @@ pub fn TicTacToe(comptime Player: type) type {
             return if (self.moves_played % 2 == 1) .first else .second;
         }
 
-        fn randomMove(self: Self) Move {
+        pub fn rolloutMove(self: Self) Move {
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
             var move = Move{ .x = 0, .y = 0 };
 

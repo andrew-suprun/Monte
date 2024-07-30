@@ -33,12 +33,16 @@ pub fn Heap(comptime T: type, comptime Context: type, comptime less: fn (context
             return result;
         }
 
+        pub fn unsorted(self: *Self, buf: []T) []T {
+            std.mem.copyForwards(T, buf, self.items[0..self.len]);
+            return buf[0..self.len];
+        }
+
         pub fn sorted(self: *Self, buf: []T) []T {
-            const len = self.len;
-            for (0..len) |i| {
-                buf[len - 1 - i] = self.remove();
+            for (0..self.len) |i| {
+                buf[self.len - 1 - i] = self.remove();
             }
-            return buf[0..len];
+            return buf[0..self.len];
         }
 
         fn sift_up(self: *Self) void {

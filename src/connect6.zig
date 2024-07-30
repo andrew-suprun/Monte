@@ -11,19 +11,15 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
 
         pub const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
         pub const Move = struct {
-            player: Player,
-            next_player: Player,
             x: u8,
             y: u8,
 
             pub inline fn eql(self: @This(), other: @This()) bool {
-                return self.player == other.player and self.x == other.x and self.y == other.y;
+                return self.x == other.x and self.y == other.y;
             }
 
             pub fn print(self: @This()) void {
-                std.debug.print("[", .{});
-                self.player.print();
-                std.debug.print(":{d}:{d}]", .{ self.x, self.y });
+                std.debug.print("{d}:{d}", .{ self.x, self.y });
             }
         };
 
@@ -61,12 +57,16 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
                 }
             }
 
-            return heap.sorted(buf);
+            return heap.unsorted(buf);
+            // return heap.sorted(buf); // Which is more efficient?
         }
 
         pub fn makeMove(self: *Self, move: Move) ?Player {
             const x = move.x;
             const y = move.y;
+
+            if (self.scores[y][x] < 22) return .none;
+
             const stone = self.nextStone();
             var check_scores = true;
             defer if (debug and check_scores) self.testScores();
@@ -175,33 +175,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             return null;
         }
 
-        pub fn rollout(self: *Self) Player {
-            while (true) {
-                if (self.randomMove()) |place| {
-                    if (self.makeMove(place)) |winner| return winner;
-                } else {
-                    return .none;
-                }
-            }
-        }
-
-        inline fn nextStone(self: Self) Stone {
-            return if ((self.move_number + 3) & 2 == 2) .black else .white;
-        }
-
-        inline fn nextPlayer(self: Self) Player {
-            return playerFromStone(self.nextStone());
-        }
-
-        inline fn playerFromStone(stone: Stone) Player {
-            return switch (stone) {
-                .none => .none,
-                .black => .first,
-                .white => .second,
-            };
-        }
-
-        pub fn randomMove(self: Self) ?Move {
+        pub fn rolloutMove(self: Self) Move {
             var rand = Prng.init(@intCast(std.time.milliTimestamp()));
 
             var best_move = Move{ .x = 0, .y = 0 };
@@ -223,8 +197,31 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
                     }
                 }
             }
-            if (best_score < 22) return null;
             return best_move;
+        }
+
+        inline fn previousStone(self: Self) Stone {
+            return if ((self.move_number + 2) & 2 == 2) .black else .white;
+        }
+
+        inline fn nextStone(self: Self) Stone {
+            return if ((self.move_number + 3) & 2 == 2) .black else .white;
+        }
+
+        pub inline fn previousPlayer(self: Self) Player {
+            return playerFromStone(self.previousStone());
+        }
+
+        pub inline fn nextPlayer(self: Self) Player {
+            return playerFromStone(self.nextStone());
+        }
+
+        inline fn playerFromStone(stone: Stone) Player {
+            return switch (stone) {
+                .none => .none,
+                .black => .first,
+                .white => .second,
+            };
         }
 
         fn calcScores(board: Board, scores: *Scores) void {
@@ -439,11 +436,19 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
             print(" |", .{});
         }
 
-        fn strFromStone(stone: Stone) []const u8 {
+        fn stoneStr(stone: Stone) []const u8 {
             return switch (stone) {
                 .none => " ",
                 .black => "X",
                 .white => "O",
+            };
+        }
+
+        pub fn playerStr(player: Player) []const u8 {
+            return switch (player) {
+                .first => "X",
+                .second => "O",
+                .none => ".",
             };
         }
     };
