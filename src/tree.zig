@@ -74,7 +74,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                 return;
             }
 
-            var buf: [Game.max_moves]Game.Move = undefined;
+            var buf: [Game.maxMoves()]Game.Move = undefined;
             const moves = game.possibleMoves(&buf);
 
             node.children = self.allocator.alloc(Node, moves.len) catch unreachable;
@@ -168,11 +168,15 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
         }
 
         pub fn bestMove(self: Self) Game.Move {
-            const player = self.game.nextPlayer();
+            return bestNodeMove(self.root, self.game);
+        }
 
-            var selected_child: *Node = &self.root.children[0];
+        pub fn bestNodeMove(node: Node, game: Game) Game.Move {
+            const player = game.nextPlayer();
+
+            var selected_child: *Node = &node.children[0];
             var selected_score = -std.math.inf(f32);
-            for (self.root.children) |*child| {
+            for (node.children) |*child| {
                 var score = -std.math.inf(f32);
                 if (player == .first) {
                     if (child.max_result == .second) continue;
@@ -207,7 +211,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                 if (node.children.len == 0) {
                     return buf[0..i];
                 }
-                const move = node.bestMove();
+                const move = Self.bestMove(node, game);
                 for (node.children) |child| {
                     if (child.move.eql(move)) {
                         buf[i] = move;
@@ -244,10 +248,10 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
         }
 
         pub fn debugSelfCheck(self: Self) void {
-            Self.debugSelfCheckRecursive(self.root, self.game);
+            Self.debugSelfCheckRecursive(self, self.root, self.game);
         }
 
-        pub fn debugSelfCheckRecursive(node: Node, game: Game) void {
+        pub fn debugSelfCheckRecursive(self: Self, node: Node, game: Game) void {
             const player = game.nextPlayer();
             var max: Player = undefined;
             var min: Player = undefined;
@@ -273,7 +277,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                 }
             }
             if (node.max_result != max or node.min_result != min) {
-                Self.debugPrint(node, game, "FAILURE");
+                self.debugPrint();
                 std.debug.panic("", .{});
             }
 
@@ -281,31 +285,51 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                 if (node.children.len > 0) {
                     var child_game = game;
                     _ = child_game.makeMove(child.move);
-                    Self.debugSelfCheckRecursive(child, child_game);
+                    self.debugSelfCheckRecursive(child, child_game);
                 }
             }
         }
-        pub fn debugPrint(node: Node, game: Game, comptime prefix: []const u8) void {
-            print("\n--- " ++ prefix ++ " ---", .{});
-            Self.debugPrintRecursive(node, game, 0);
+        pub fn debugPrint(self: Self) void {
+            self.debugPrintRecursive(self.root, self.game, 0);
         }
 
-        fn debugPrintRecursive(node: Node, game: Game, level: usize) void {
+        fn debugPrintRecursive(self: Self, node: Node, game: Game, level: usize) void {
+            Self.debugPrintNode(node, game, level);
+            if (node.children.len == 0) return;
+
+            const best_move = Self.bestNodeMove(node, game);
+            for (node.children) |child| {
+                var child_game = game;
+                _ = child_game.makeMove(child.move);
+                if (child.move.eql(best_move)) {
+                    self.debugPrintRecursive(child, child_game, level + 1);
+                } else {
+                    Self.debugPrintNode(child, child_game, level + 1);
+                }
+            }
+        }
+
+        pub fn debugPrintNode(node: Node, game: Game, level: usize) void {
             print("\n", .{});
             for (0..level) |_| print("| ", .{});
-            print("lvl{d} ", .{level});
-            node.move.print();
+            print("lvl{d} ", .{level + 1});
+            node.move.print(game.previousPlayer());
             print(" | ", .{});
             node.stats.debugPrint();
             print(" | score: {d:6.3}", .{Self.calcScore(node, game)});
             print(" | max: {s}", .{Game.playerStr(node.max_result)});
             print(" | min: {s}", .{Game.playerStr(node.min_result)});
             print(" | children {d}", .{node.children.len});
+        }
 
-            for (node.children) |child| {
-                var child_game = game;
+        pub fn debugPrintChildren(self: Self) void {
+            print("\n", .{});
+            Self.debugPrintNode(self.root, self.game);
+            for (self.root.children) |child| {
+                var child_game = self.game;
                 _ = child_game.makeMove(child.move);
-                Self.debugPrintRecursive(child, child_game, level + 1);
+                print("\n  ", .{});
+                Self.debugPrintNode(child, child_game);
             }
         }
     };

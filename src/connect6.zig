@@ -3,7 +3,7 @@ const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
-pub fn C6(comptime Player: type, comptime board_size: usize) type {
+pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves: usize) type {
     return struct {
         board: Board,
         scores: Scores,
@@ -18,12 +18,10 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
                 return self.x == other.x and self.y == other.y;
             }
 
-            pub fn print(self: @This()) void {
-                std.debug.print("{d}:{d}", .{ self.x, self.y });
+            pub fn print(self: @This(), player: Player) void {
+                std.debug.print("{s}:{d}:{d}", .{ playerStr(player), self.x, self.y });
             }
         };
-
-        pub const max_moves: usize = 32;
 
         const Self = @This();
         const Board = [board_size][board_size]Stone;
@@ -451,6 +449,9 @@ pub fn C6(comptime Player: type, comptime board_size: usize) type {
                 .none => ".",
             };
         }
+        pub fn maxMoves() comptime_int {
+            return max_moves;
+        }
     };
 }
 
@@ -466,9 +467,9 @@ test "calcScores" {
 
 test "possibleMoves" {
     const Player = enum(u2) { seconf, none, first };
-    const Game = C6(Player, 19);
+    const Game = C6(Player, 19, 31);
     var c6 = Game.init();
-    var buf: [Game.max_moves]Game.Move = undefined;
+    var buf: [Game.maxMoves()]Game.Move = undefined;
     const moves = c6.possibleMoves(&buf);
 
     for (moves, 0..) |move, i| {
