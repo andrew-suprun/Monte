@@ -27,14 +27,19 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
         };
 
         const Stats = struct {
-            first_wins: f32 = 0,
-            second_wins: f32 = 0,
+            rollout_diff: f32 = 0,
             n_rollouts: f32 = 1,
 
+            inline fn calcScore(stats: Stats, player: Player) f32 {
+                return if (player == .first)
+                    stats.rollout_diff / stats.n_rollouts
+                else
+                    -stats.rollout_diff / stats.n_rollouts;
+            }
+
             fn debugPrint(self: Stats) void {
-                print("first: {d:3} | second: {d:3} | rollouts: {d:4}", .{
-                    self.first_wins,
-                    self.second_wins,
+                print("rollout_diff: {d:3} | rollouts: {d:4}", .{
+                    self.rollout_diff,
                     self.n_rollouts,
                 });
             }
@@ -98,12 +103,12 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                 const rollout_result = Self.rollout(&rollout_game);
                 switch (rollout_result) {
                     .first => {
-                        child.stats.first_wins = 1;
-                        stats.first_wins += 1;
+                        child.stats.rollout_diff = 1;
+                        stats.rollout_diff += 1;
                     },
                     .second => {
-                        child.stats.second_wins = 1;
-                        stats.second_wins += 1;
+                        child.stats.rollout_diff = -1;
+                        stats.rollout_diff -= 1;
                     },
                     else => {},
                 }
@@ -118,7 +123,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
             var selected_score = -std.math.inf(f32);
             for (node.children) |*child| {
                 if (child.max_result != child.min_result) {
-                    const child_score = Self.calcScore(child.*, game) + explore_factor * @sqrt(big_n / child.stats.n_rollouts);
+                    const child_score = child.stats.calcScore(game.previousPlayer()) + explore_factor * @sqrt(big_n / child.stats.n_rollouts);
                     if (selected_child == null or selected_score < child_score) {
                         selected_child = child;
                         selected_score = child_score;
@@ -129,16 +134,8 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
             return selected_child.?;
         }
 
-        inline fn calcScore(node: Node, game: Game) f32 {
-            return if (game.previousPlayer() == .first)
-                (node.stats.first_wins - node.stats.second_wins) / node.stats.n_rollouts
-            else
-                (node.stats.second_wins - node.stats.first_wins) / node.stats.n_rollouts;
-        }
-
         fn updateStats(node: *Node, stats: *Stats, next_player: Player) void {
-            node.stats.first_wins += stats.first_wins;
-            node.stats.second_wins += stats.second_wins;
+            node.stats.rollout_diff += stats.rollout_diff;
             node.stats.n_rollouts += stats.n_rollouts;
             if (next_player == .first) {
                 node.max_result = .second;
@@ -183,7 +180,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                     if (child.min_result == .first) {
                         return child.move;
                     }
-                    score = (child.stats.first_wins - child.stats.second_wins) / child.stats.n_rollouts;
+                    score = child.stats.rollout_diff / child.stats.n_rollouts;
                     if (score < 0 and child.min_result == .none)
                         score = 0;
                 } else {
@@ -191,7 +188,7 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
                     if (child.max_result == .second) {
                         return child.move;
                     }
-                    score = (child.stats.second_wins - child.stats.first_wins) / child.stats.n_rollouts;
+                    score = -child.stats.rollout_diff / child.stats.n_rollouts;
                     if (score < 0 and child.max_result == .none)
                         score = 0;
                 }
@@ -310,13 +307,14 @@ pub fn SearchTree(comptime Game: type, comptime explore_factor: f32) type {
         }
 
         pub fn debugPrintNode(node: Node, game: Game, level: usize) void {
+            const player = game.previousPlayer();
             print("\n", .{});
             for (0..level) |_| print("| ", .{});
             print("lvl{d} ", .{level + 1});
-            node.move.print(game.previousPlayer());
+            node.move.print(player);
             print(" | ", .{});
             node.stats.debugPrint();
-            print(" | score: {d:6.3}", .{Self.calcScore(node, game)});
+            print(" | score: {d:6.3}", .{node.stats.calcScore(player)});
             print(" | max: {s}", .{Game.playerStr(node.max_result)});
             print(" | min: {s}", .{Game.playerStr(node.min_result)});
             print(" | children {d}", .{node.children.len});
