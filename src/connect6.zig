@@ -7,61 +7,126 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
     return struct {
         board: Board,
         scores: Scores,
-        move_number: u32,
+        moves_played: u32,
 
-        pub const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
         pub const Move = struct {
-            x: u8,
-            y: u8,
+            player: Player,
+            next_player: Player, // TODO: Remove later?
+            places: [2]Place,
 
             pub inline fn eql(self: @This(), other: @This()) bool {
-                return self.x == other.x and self.y == other.y;
+                return self.places[0].x == other.places[0].x and self.places[0].y == other.places[0].y and
+                    self.places[1].x == other.places[1].x and self.places[1].y == other.places[1].y;
             }
 
-            pub fn print(self: @This(), player: Player) void {
-                std.debug.print("{s}:{d}:{d}", .{ playerStr(player), self.x, self.y });
+            pub fn print(self: @This()) void {
+                std.debug.print("[{s}: {d}:{d}, {d}:{d}]", .{
+                    playerStr(self.player),
+                    self.places[0].x,
+                    self.places[0].y,
+                    self.places[1].x,
+                    self.places[1].y,
+                });
             }
         };
-
-        const Self = @This();
-        const Board = [board_size][board_size]Stone;
-        const Scores = [board_size][board_size]i32;
-        const Heap = @import("heap.zig").Heap(Move, Scores, cmp, max_moves);
-
-        fn cmp(scores: Scores, a: Move, b: Move) bool {
-            return scores[a.y][a.x] < scores[b.y][b.x];
-        }
 
         pub fn init() Self {
             var self = Self{
                 .board = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
                 .scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size,
-                .move_number = 0,
+                .moves_played = 0,
             };
             calcScores(self.board, &self.scores);
-            _ = self.makeMove(Move{ .x = board_size / 2, .y = board_size / 2 });
+            _ = self.addStone(Place{
+                .x = board_size / 2,
+                .y = board_size / 2,
+            });
+            self.moves_played = 1;
 
             return self;
         }
 
         pub fn possibleMoves(self: Self, buf: []Move) []Move {
-            var heap = Heap.init(self.scores);
+            var player: Player = undefined;
+            var next_player: Player = undefined;
+            if (self.previousPlayer() == .first) {
+                player = .second;
+                next_player = .first;
+            } else {
+                player = .first;
+                next_player = .second;
+            }
+            var places = PlacesHeap.init(self.scores);
 
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
                     if (self.board[y][x] == .none) {
-                        heap.add(.{ .x = @intCast(x), .y = @intCast(y) });
+                        places.add(.{ .x = @intCast(x), .y = @intCast(y) });
                     }
                 }
             }
 
-            return heap.unsorted(buf);
-            // return heap.sorted(buf); // Which is more efficient?
+            var moves = MovesHeap.init(self.scores);
+            for (places.items, 0..) |place1, i| {
+                for (places.items[i + 1 ..]) |place2| {
+                    moves.add(.{ .player = player, .next_player = next_player, .places = [_]Place{ place1, place2 } });
+                }
+            }
+
+            // return moves.unsorted(buf);
+            return moves.sorted(buf); // Which is more efficient?
+        }
+
+        pub fn rollout(self: *Self) Player {
+            while (true) {
+                if (self.makeMove(self.rolloutMove())) |winner| {
+                    return winner;
+                }
+            }
+        }
+
+        pub fn rolloutMove(self: Self) Move {
+            var place1 = Place{ .x = 0, .y = 0 };
+            var score1: i32 = 0;
+            var place2 = Place{ .x = 0, .y = 0 };
+            var score2: i32 = 0;
+
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
+                    if (self.board[y][x] != .none) continue;
+                    const score = self.scores[y][x];
+                    if (score > score1) {
+                        place2 = place1;
+                        score2 = score1;
+                        place1 = Place{ .x = @intCast(x), .y = @intCast(y) };
+                        score1 = score;
+                    } else if (score > score2) {
+                        place1 = Place{ .x = @intCast(x), .y = @intCast(y) };
+                        score2 = score;
+                    }
+                }
+            }
+            return Move{ .player = self.previousPlayer(), .next_player = self.nextPlayer(), .places = [_]Place{
+                place1,
+                place2,
+            } };
+        }
+
+        pub fn maxMoves() comptime_int {
+            return max_moves;
         }
 
         pub fn makeMove(self: *Self, move: Move) ?Player {
-            const x = move.x;
-            const y = move.y;
+            if (self.addStone(move.places[0])) |winner| {
+                return winner;
+            }
+            self.moves_played += 1;
+            return self.addStone(move.places[1]);
+        }
+
+        fn addStone(self: *Self, place: Place) ?Player {
+            const x = place.x;
+            const y = place.y;
 
             if (self.scores[y][x] < 22) return .none;
 
@@ -169,49 +234,19 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             }
 
             self.board[y][x] = stone;
-            self.move_number += 1;
             return null;
         }
 
-        fn rolloutMove(self: Self) Move {
-            var rand = Prng.init(@intCast(std.time.milliTimestamp()));
-
-            var best_move = Move{ .x = 0, .y = 0 };
-            var best_score: i32 = 0;
-            var prob: u64 = 2;
-            for (0..board_size) |y| {
-                for (0..board_size) |x| {
-                    if (self.board[y][x] != .none) continue;
-                    const score = self.scores[y][x];
-                    if (score > best_score) {
-                        best_score = score;
-                        best_move = Move{ .x = @intCast(x), .y = @intCast(y) };
-                        prob = 2;
-                    } else if (score == best_score) {
-                        if (rand.next() % prob == 0) {
-                            best_move = Move{ .x = @intCast(x), .y = @intCast(y) };
-                            prob += 1;
-                        }
-                    }
-                }
-            }
-            return best_move;
-        }
-
-        inline fn previousStone(self: Self) Stone {
-            return if ((self.move_number + 2) & 2 == 2) .black else .white;
+        pub inline fn previousPlayer(self: Self) Player {
+            return if (self.moves_played % 2 == 1) .first else .second;
         }
 
         inline fn nextStone(self: Self) Stone {
-            return if ((self.move_number + 3) & 2 == 2) .black else .white;
-        }
-
-        pub inline fn previousPlayer(self: Self) Player {
-            return playerFromStone(self.previousStone());
+            return if (self.moves_played % 2 == 0) .black else .white;
         }
 
         pub inline fn nextPlayer(self: Self) Player {
-            return playerFromStone(self.nextStone());
+            return if (self.moves_played % 2 == 0) .first else .second;
         }
 
         inline fn playerFromStone(stone: Stone) Player {
@@ -220,6 +255,26 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
                 .black => .first,
                 .white => .second,
             };
+        }
+
+        const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
+
+        const Place = struct { x: u8, y: u8 };
+
+        const Self = @This();
+        const Board = [board_size][board_size]Stone;
+        const Scores = [board_size][board_size]i32;
+        const PlacesHeap = @import("heap.zig").Heap(Place, Scores, cmpPlaces, 16);
+        const MovesHeap = @import("heap.zig").Heap(Move, Scores, cmpMoves, max_moves);
+
+        fn cmpPlaces(scores: Scores, a: Place, b: Place) bool {
+            return scores[a.y][a.x] < scores[b.y][b.x];
+        }
+
+        fn cmpMoves(scores: Scores, a: Move, b: Move) bool {
+            const aScore = scores[a.places[0].y][a.places[0].x] + scores[a.places[1].y][a.places[1].x];
+            const bScore = scores[b.places[0].y][b.places[0].x] + scores[b.places[1].y][b.places[1].x];
+            return aScore < bScore;
         }
 
         fn calcScores(board: Board, scores: *Scores) void {
@@ -358,6 +413,13 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             }
         }
 
+        pub fn playerStr(player: Player) []const u8 {
+            return switch (player) {
+                .first => "X",
+                .second => "O",
+                .none => ".",
+            };
+        }
         fn testScores(self: Self) void {
             var scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size;
             calcScores(self.board, &scores);
@@ -397,6 +459,8 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
         }
 
         pub fn printBoard(self: Self, move: Move) void {
+            const place1 = move.places[0];
+            const place2 = move.places[1];
             print("\n   |", .{});
             for (0..board_size) |i| {
                 print("{:2}", .{i % 10});
@@ -413,8 +477,8 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
                 print("\n{:2} |", .{y});
                 for (0..board_size) |x| {
                     switch (self.board[y][x]) {
-                        .black => if (move.x == x and move.y == y) print(" #", .{}) else print(" X", .{}),
-                        .white => if (move.x == x and move.y == y) print(" @", .{}) else print(" O", .{}),
+                        .black => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print(" #", .{}) else print(" X", .{}),
+                        .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print(" @", .{}) else print(" O", .{}),
                         else => print(" .", .{}),
                     }
                 }
@@ -442,37 +506,30 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             };
         }
 
-        pub fn playerStr(player: Player) []const u8 {
+        fn testStoneFromPlayer(player: Player) Stone {
             return switch (player) {
-                .first => "X",
-                .second => "O",
-                .none => ".",
+                .first => .black,
+                .second => .white,
+                .none => .none,
             };
-        }
-        pub fn maxMoves() comptime_int {
-            return max_moves;
         }
     };
 }
 
-// test "calcScores" {
-//     const Player = enum(u2) { second, none, first };
-//     print("\n", .{});
-//     const Game = C6(Player, 19, 31);
-//     var c6 = Game.init();
-//     _ = c6.makeMove(.{ .player = .first, .x = 18, .y = 18 });
-//     const result = c6.rollout();
-//     print("rollout result {any}\n", .{result});
-// }
-
 test "possibleMoves" {
     const Player = enum(u2) { second, none, first };
-    const Game = C6(Player, 19, 31);
+    const Game = C6(Player, 19, 64);
     var c6 = Game.init();
     var buf: [Game.maxMoves()]Game.Move = undefined;
     const moves = c6.possibleMoves(&buf);
 
-    for (moves, 0..) |move, i| {
-        print("{} - {}:{}\n", .{ i + 1, move.x, move.y });
+    for (moves, 1..) |move, i| {
+        c6.board[move.places[0].y][move.places[0].x] = Game.testStoneFromPlayer(move.player);
+        c6.board[move.places[1].y][move.places[1].x] = Game.testStoneFromPlayer(move.player);
+        print("\n {d} - ", .{i});
+        move.print();
     }
+    c6.printBoard(undefined);
 }
+
+test "rollout" {}

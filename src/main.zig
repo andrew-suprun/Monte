@@ -5,7 +5,7 @@ const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const tree = @import("tree.zig");
-const Game = @import("connect6_a.zig").C6(tree.Player, 19, 31);
+const Game = @import("connect6.zig").C6(tree.Player, 19, 31);
 // const Game = @import("ttt.zig").TicTacToe(tree.Player);
 
 pub fn main() !void {
@@ -45,7 +45,7 @@ pub fn main() !void {
         if (debug) first.debugSelfCheck();
 
         print("\n----------\nmove: ", .{});
-        move.print(player);
+        move.print();
         first.game.printBoard(move);
         // first.game.printScores(engine.game.scores, "");
         // first.debugPrint();

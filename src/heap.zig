@@ -39,10 +39,11 @@ pub fn Heap(comptime T: type, comptime Context: type, comptime less: fn (context
         }
 
         pub fn sorted(self: *Self, buf: []T) []T {
-            for (0..self.len) |i| {
-                buf[self.len - 1 - i] = self.remove();
+            const len = self.len;
+            for (0..len) |i| {
+                buf[len - 1 - i] = self.remove();
             }
-            return buf[0..self.len];
+            return buf[0..len];
         }
 
         fn sift_up(self: *Self) void {
