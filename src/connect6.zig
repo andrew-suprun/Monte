@@ -40,7 +40,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             _ = self.addStone(Place{
                 .x = board_size / 2,
                 .y = board_size / 2,
-            });
+            }, .black);
             self.moves_played = 1;
 
             return self;
@@ -78,38 +78,43 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
         }
 
         pub fn rollout(self: *Self) Player {
+            var rng = Prng.init(@intCast(std.time.microTimestamp()));
+
             while (true) {
-                if (self.makeMove(self.rolloutMove())) |winner| {
-                    return winner;
+                const stone = self.nextStone();
+                inline for (0..2) |_| {
+                    const place = self.rolloutPlace(&rng);
+                    if (place) |p| {
+                        if (self.addStone(p, stone)) |winner| return winner;
+                    } else {
+                        return .none;
+                    }
                 }
             }
         }
 
-        pub fn rolloutMove(self: Self) Move {
-            var place1 = Place{ .x = 0, .y = 0 };
-            var score1: i32 = 0;
-            var place2 = Place{ .x = 0, .y = 0 };
-            var score2: i32 = 0;
-
+        pub fn rolloutPlace(self: Self, rng: *Prng) ?Place {
+            var best_place = Place{ .x = 0, .y = 0 };
+            var best_score: i32 = 0;
+            var prob: u64 = 2;
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
                     if (self.board[y][x] != .none) continue;
                     const score = self.scores[y][x];
-                    if (score > score1) {
-                        place2 = place1;
-                        score2 = score1;
-                        place1 = Place{ .x = @intCast(x), .y = @intCast(y) };
-                        score1 = score;
-                    } else if (score > score2) {
-                        place1 = Place{ .x = @intCast(x), .y = @intCast(y) };
-                        score2 = score;
+                    if (score > best_score) {
+                        best_score = score;
+                        best_place = Place{ .x = @intCast(x), .y = @intCast(y) };
+                        prob = 2;
+                    } else if (score == best_score) {
+                        if (rng.next() % prob == 0) {
+                            best_place = Place{ .x = @intCast(x), .y = @intCast(y) };
+                            prob += 1;
+                        }
                     }
                 }
             }
-            return Move{ .player = self.previousPlayer(), .next_player = self.nextPlayer(), .places = [_]Place{
-                place1,
-                place2,
-            } };
+            if (best_score < 22) return null;
+            return best_place;
         }
 
         pub fn maxMoves() comptime_int {
@@ -117,22 +122,21 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
         }
 
         pub fn makeMove(self: *Self, move: Move) ?Player {
-            if (self.addStone(move.places[0])) |winner| {
+            defer self.moves_played += 1;
+
+            const stone = Self.stoneFromPlayer(move.player);
+
+            if (self.addStone(move.places[0], stone)) |winner| {
                 return winner;
             }
-            self.moves_played += 1;
-            return self.addStone(move.places[1]);
+            return self.addStone(move.places[1], stone);
         }
 
-        fn addStone(self: *Self, place: Place) ?Player {
+        pub fn addStone(self: *Self, place: Place, stone: Stone) ?Player {
             const x = place.x;
             const y = place.y;
 
-            if (self.scores[y][x] < 22) return .none;
-
-            const stone = self.nextStone();
-            var check_scores = true;
-            defer if (debug and check_scores) self.testScores();
+            defer self.board[y][x] = stone;
 
             {
                 const start_x: usize = @max(x, 5) - 5;
@@ -145,7 +149,6 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
                     stones += @intFromEnum(self.board[y][dx + 5]);
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
-                        check_scores = false;
                         return playerFromStone(d.winner);
                     }
                     inline for (0..6) |c| {
@@ -166,7 +169,6 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
                     stones += @intFromEnum(self.board[dy + 5][x]);
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
-                        check_scores = false;
                         return playerFromStone(d.winner);
                     }
                     inline for (0..6) |c| {
@@ -194,7 +196,6 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
                     stones += @intFromEnum(self.board[yy + 5][xx + 5]);
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
-                        check_scores = false;
                         return playerFromStone(d.winner);
                     }
                     inline for (0..6) |e| {
@@ -223,7 +224,6 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
                     stones += @intFromEnum(self.board[start_y + 5 + c][start_x - 5 - c]);
                     const d = calcDelta(stones, stone);
                     if (d.winner != .none) {
-                        check_scores = false;
                         return playerFromStone(d.winner);
                     }
                     inline for (0..6) |e| {
@@ -237,7 +237,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             return null;
         }
 
-        pub inline fn previousPlayer(self: Self) Player {
+        inline fn previousPlayer(self: Self) Player {
             return if (self.moves_played % 2 == 1) .first else .second;
         }
 
@@ -259,7 +259,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
 
         const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
-        const Place = struct { x: u8, y: u8 };
+        pub const Place = struct { x: u8, y: u8 };
 
         const Self = @This();
         const Board = [board_size][board_size]Stone;
@@ -506,7 +506,7 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             };
         }
 
-        fn testStoneFromPlayer(player: Player) Stone {
+        pub fn stoneFromPlayer(player: Player) Stone {
             return switch (player) {
                 .first => .black,
                 .second => .white,
@@ -524,12 +524,10 @@ test "possibleMoves" {
     const moves = c6.possibleMoves(&buf);
 
     for (moves, 1..) |move, i| {
-        c6.board[move.places[0].y][move.places[0].x] = Game.testStoneFromPlayer(move.player);
-        c6.board[move.places[1].y][move.places[1].x] = Game.testStoneFromPlayer(move.player);
+        c6.board[move.places[0].y][move.places[0].x] = Game.stoneFromPlayer(move.player);
+        c6.board[move.places[1].y][move.places[1].x] = Game.stoneFromPlayer(move.player);
         print("\n {d} - ", .{i});
         move.print();
     }
     c6.printBoard(undefined);
 }
-
-test "rollout" {}

@@ -1,7 +1,6 @@
-* adapt C6 to updated engine
-* try remove Move.player and .next_player
+* remove unnecessary `pub`s in connect6.zig
 * optimize (inlining)
-* investigate alternative score calculations
+* fine tune C6.calcScore()
 * minimal UI
 * multithreading
 * GUI

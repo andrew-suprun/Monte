@@ -93,6 +93,46 @@ pub fn Node(Game: type, Player: type, comptime explore_factor: f32) type {
             }
         }
 
+        pub fn debugSelfCheckRecursive(self: Self, game: Game) void {
+            const player = self.move.next_player;
+            var max: Player = undefined;
+            var min: Player = undefined;
+
+            if (self.children.len == 0) return;
+
+            if (player == .first) {
+                max = .second;
+                min = .second;
+            } else {
+                max = .first;
+                min = .first;
+            }
+            if (player == .first) {
+                for (self.children) |child| {
+                    max = @enumFromInt(@max(@intFromEnum(max), @intFromEnum(child.max_result)));
+                    min = @enumFromInt(@max(@intFromEnum(min), @intFromEnum(child.min_result)));
+                }
+            } else {
+                for (self.children) |child| {
+                    max = @enumFromInt(@min(@intFromEnum(max), @intFromEnum(child.max_result)));
+                    min = @enumFromInt(@min(@intFromEnum(min), @intFromEnum(child.min_result)));
+                }
+            }
+            if (self.max_result != max or self.min_result != min) {
+                print("\nmax = {s} min = {s}", .{ Game.playerStr(max), Game.playerStr(min) });
+                self.debugPrintRecursive(0);
+                std.debug.panic("", .{});
+            }
+
+            for (self.children) |child| {
+                if (self.children.len > 0) {
+                    var child_game = game;
+                    _ = child_game.makeMove(child.move);
+                    child.debugSelfCheckRecursive(child_game);
+                }
+            }
+        }
+
         pub fn debugPrintRecursive(self: Self, level: usize) void {
             self.debugPrint(level);
             if (self.children.len == 0) return;

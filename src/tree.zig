@@ -132,47 +132,9 @@ pub fn SearchTree(Game: type, comptime explore_factor: f32) type {
         }
 
         pub fn debugSelfCheck(self: Self) void {
-            Self.debugSelfCheckRecursive(self, self.root, self.game);
+            self.root.debugSelfCheckRecursive(self.game);
         }
 
-        pub fn debugSelfCheckRecursive(self: Self, node: Node, game: Game) void {
-            const player = game.nextPlayer();
-            var max: Player = undefined;
-            var min: Player = undefined;
-
-            if (node.children.len == 0) return;
-
-            if (player == .first) {
-                max = .second;
-                min = .second;
-            } else {
-                max = .first;
-                min = .first;
-            }
-            if (player == .first) {
-                for (node.children) |child| {
-                    max = @enumFromInt(@max(@intFromEnum(max), @intFromEnum(child.max_result)));
-                    min = @enumFromInt(@max(@intFromEnum(min), @intFromEnum(child.min_result)));
-                }
-            } else {
-                for (node.children) |child| {
-                    max = @enumFromInt(@min(@intFromEnum(max), @intFromEnum(child.max_result)));
-                    min = @enumFromInt(@min(@intFromEnum(min), @intFromEnum(child.min_result)));
-                }
-            }
-            if (node.max_result != max or node.min_result != min) {
-                self.debugPrint();
-                std.debug.panic("", .{});
-            }
-
-            for (node.children) |child| {
-                if (node.children.len > 0) {
-                    var child_game = game;
-                    _ = child_game.makeMove(child.move);
-                    self.debugSelfCheckRecursive(child, child_game);
-                }
-            }
-        }
         pub fn debugPrint(self: Self) void {
             self.root.debugPrintRecursive(0);
         }
