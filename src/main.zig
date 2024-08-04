@@ -6,7 +6,7 @@ const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 const Prng = std.rand.Random.DefaultPrng;
 
 const tree = @import("tree.zig");
-const Game = @import("connect6.zig").C6(tree.Player, 19, 31);
+const Game = @import("connect6.zig").C6(tree.Player, 19, 6);
 // const Game = @import("ttt.zig").TicTacToe(tree.Player);
 
 pub fn main() !void {
@@ -27,7 +27,17 @@ pub fn main() !void {
     main_loop: while (true) {
         const player = first.game.nextPlayer();
         if (player == .first) {
-            for (0..10_000) |_| {
+            { // DEBUG
+                var buf: [Game.maxMoves()]Game.Move = undefined;
+                const moves = first.game.possibleMoves(&buf);
+                print("\npossible moves: ", .{});
+                for (moves) |m| {
+                    m.print();
+                    print(", ", .{});
+                }
+            }
+
+            for (0..100_000) |_| {
                 if (first.root.min_result == first.root.max_result) {
                     result = first.root.min_result;
                     if (debug) first.debugSelfCheck();
@@ -73,7 +83,18 @@ pub fn main() !void {
 
     print("\n\n########################\n", .{});
 
-    for (0..10) |_| {
+    first.debugPrint();
+    while (true) {
+        { // DEBUG
+            var buf: [Game.maxMoves()]Game.Move = undefined;
+            const moves = first.game.possibleMoves(&buf);
+            print("\npossible moves: ", .{});
+            for (moves) |m| {
+                m.print();
+                print(", ", .{});
+            }
+        }
+
         move = first.bestMove();
         const winner = first.commitMove(move);
         print("\n----------\nmove: ", .{});

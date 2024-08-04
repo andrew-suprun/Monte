@@ -257,14 +257,13 @@ pub fn C6(comptime Player: type, comptime board_size: usize, comptime max_moves:
             };
         }
 
-        const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
-
         pub const Place = struct { x: u8, y: u8 };
 
         const Self = @This();
+        const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
         const Board = [board_size][board_size]Stone;
         const Scores = [board_size][board_size]i32;
-        const PlacesHeap = @import("heap.zig").Heap(Place, Scores, cmpPlaces, 16);
+        const PlacesHeap = @import("heap.zig").Heap(Place, Scores, cmpPlaces, max_moves / 2 + 1);
         const MovesHeap = @import("heap.zig").Heap(Move, Scores, cmpMoves, max_moves);
 
         fn cmpPlaces(scores: Scores, a: Place, b: Place) bool {
