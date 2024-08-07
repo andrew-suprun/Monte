@@ -25,15 +25,109 @@ pub fn C6(comptime board_size: comptime_int) type {
             return self;
         }
 
-        fn addStone(self: *Self, move: Move, stone: Stone) ?Stone {
+        fn addStone(self: Self, scores: *Scores, move: Move, stone: Stone) ?Stone {
             const x = move.x;
             const y = move.y;
 
             defer self.board[y][x] = stone;
 
-            // ...
+            {
+                const start_x: usize = @max(x, 5) - 5;
+                const end_x: usize = @min(x + 1, board_size - 5);
+                var stones: i32 = @intFromEnum(self.board[y][start_x]);
+                for (1..5) |i| {
+                    stones += @intFromEnum(self.board[y][start_x + i]);
+                }
+                for (start_x..end_x) |dx| {
+                    stones += @intFromEnum(self.board[y][dx + 5]);
+                    const d = calcScore(stones, stone);
+                    if (d.winner != .none) {
+                        return d.winner;
+                    }
+                    inline for (0..6) |c| {
+                        scores[y][dx + c] += d.score;
+                    }
+                    stones -= @intFromEnum(self.board[y][dx]);
+                }
+            }
 
-            return .none;
+            {
+                const start_y: usize = @max(y, 5) - 5;
+                const end_y: usize = @min(y + 1, board_size - 5);
+                var stones: i32 = @intFromEnum(self.board[start_y][x]);
+                for (1..5) |i| {
+                    stones += @intFromEnum(self.board[start_y + i][x]);
+                }
+                for (start_y..end_y) |dy| {
+                    stones += @intFromEnum(self.board[dy + 5][x]);
+                    const d = calcScore(stones, stone);
+                    if (d.winner != .none) {
+                        return d.winner;
+                    }
+                    inline for (0..6) |c| {
+                        scores[dy + c][x] += d.score;
+                    }
+                    stones -= @intFromEnum(self.board[dy][x]);
+                }
+            }
+
+            b1: {
+                const min: usize = @min(x, y, 5);
+                const max: usize = @max(x, y);
+
+                if (max - min >= board_size - 5) break :b1;
+
+                const start_x = x - min;
+                const start_y = y - min;
+                const count = @min(min + 1, board_size - max, board_size - 5 + min - max);
+
+                var stones: i32 = @intFromEnum(self.board[start_y][start_x]);
+                for (1..5) |i| {
+                    stones += @intFromEnum(self.board[start_y + i][start_x + i]);
+                }
+                for (start_x.., start_y.., 0..count) |xx, yy, _| {
+                    stones += @intFromEnum(self.board[yy + 5][xx + 5]);
+                    const d = calcScore(stones, stone);
+                    if (d.winner != .none) {
+                        return d.winner;
+                    }
+                    inline for (0..6) |e| {
+                        scores[yy + e][xx + e] += d.score;
+                    }
+                    stones -= @intFromEnum(self.board[yy][xx]);
+                }
+            }
+
+            b2: {
+                const rev_x = board_size - 1 - x;
+                const min: usize = @min(rev_x, y, 5);
+                const max: usize = @max(rev_x, y);
+
+                if (max - min >= board_size - 5) break :b2;
+
+                const start_x = x + min;
+                const start_y = y - min;
+                const count = @min(min + 1, board_size - max, board_size - 5 + min - max);
+
+                var stones: i32 = @intFromEnum(self.board[start_y][start_x]);
+                for (1..5) |i| {
+                    stones += @intFromEnum(self.board[start_y + i][start_x - i]);
+                }
+                for (0..count) |c| {
+                    stones += @intFromEnum(self.board[start_y + 5 + c][start_x - 5 - c]);
+                    const d = calcScore(stones, stone);
+                    if (d.winner != .none) {
+                        return d.winner;
+                    }
+                    inline for (0..6) |e| {
+                        scores[start_y + c + e][start_x - c - e] += d.score;
+                    }
+                    stones -= @intFromEnum(self.board[start_y + c][start_x - c]);
+                }
+            }
+
+            self.board[y][x] = stone;
+            return null;
         }
 
         fn testCalcScores(board: Board, comptime stone: Stone) Scores {
@@ -118,7 +212,7 @@ pub fn C6(comptime board_size: comptime_int) type {
         const one_stone = 1;
         const two_stones = 3;
         const three_stones = 7;
-        const four_stones = 31;
+        const four_stones = 15;
         const five_stones = 63;
         const six_stones = 1024;
 
@@ -129,7 +223,7 @@ pub fn C6(comptime board_size: comptime_int) type {
         // const five_stones = 32;
         // const six_stones = 1024;
 
-        fn calcScore(comptime stone: Stone, stones: i32) i32 {
+        fn calcScore(stones: i32, comptime stone: Stone) i32 {
             return if (stone == .black)
                 switch (stones) {
                     0x00 => one_stone,
