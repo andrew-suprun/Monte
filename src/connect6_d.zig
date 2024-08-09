@@ -17,23 +17,124 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             }
         };
 
-        pub const Move = struct { places: [2]Place, player: Player, score: f32 };
+        pub const Move = struct {
+            places: [2]Place,
+            player: Player,
+            score: i32,
+
+            fn print(self: @This()) void {
+                std.debug.print("[{}:{}, {}:{}, {s}, {d}]", .{
+                    self.places[0].x,
+                    self.places[0].y,
+                    self.places[1].x,
+                    self.places[1].y,
+                    self.player.str(),
+                    self.score,
+                });
+            }
+        };
 
         pub fn maxMoves() comptime_int {
             return max_moves;
         }
 
-        const Score = struct { score: i32, winner: Stone };
+        pub fn makeMove(self: *Self, move: Move) void {
+            const stone = Stone.fromPlayer(move.player);
+            const p1 = move.places[0];
+            const p2 = move.places[1];
+            self.board[p1.y][p1.x] = stone;
+            self.board[p2.y][p2.x] = stone;
+            self.n_moves += 1;
+        }
 
-        pub fn placeStone(self: *Self, place: Place, stone: Stone) Score {
+        pub fn possibleMoves(self: *Self, buf: []Move) []Move {
+            var places: [board_size][board_size]bool = [1][board_size]bool{[1]bool{false} ** board_size} ** board_size;
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
+                    const x_start = @max(2, x) - 2;
+                    const x_end = @min(board_size, x + 3);
+                    const y_start = @max(2, y) - 2;
+                    const y_end = @min(board_size, y + 3);
+                    for (y_start..y_end) |yy| {
+                        for (x_start..x_end) |xx| {
+                            places[yy][xx] = true;
+                        }
+                    }
+                }
+            }
+
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
+                    if (self.board[y][x] != .none) places[y][x] = false;
+                }
+            }
+
+            var place_list: [board_size * board_size]Place = undefined;
+            var n_places: usize = 0;
+            for (0..board_size) |y| {
+                for (0..board_size) |x| {
+                    if (places[y][x]) {
+                        place_list[n_places] = Place.init(x, y);
+                        n_places += 1;
+                    }
+                }
+            }
+
+            return if (self.nextStone() == .black)
+                self.selectMoves(place_list[0..n_places], self.nextPlayer(), .black, buf)
+            else
+                self.selectMoves(place_list[0..n_places], self.nextPlayer(), .white, buf);
+        }
+
+        fn selectMoves(self: *Self, place_list: []Place, player: Player, comptime stone: Stone, buf: []Move) []Move {
+            var heap = if (stone == .black) HeapBlack.init({}) else HeapWhite.init({});
+            for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
+                const score1 = self.ratePlace(p1, stone);
+                if (score1.winner != .none) {
+                    return winningMove(p1, p1, score1, buf);
+                }
+                self.board[p1.y][p1.x] = stone;
+                for (place_list[i + 1 .. place_list.len]) |p2| {
+                    const score2 = self.ratePlace(p2, stone);
+                    if (score2.winner != .none) {
+                        return winningMove(p1, p2, score2, buf);
+                    }
+                    heap.add(Move{
+                        .places = [2]Place{ p1, p2 },
+                        .player = player,
+                        .score = score1.score + score2.score,
+                    });
+                }
+                self.board[p1.y][p1.x] = .none;
+            }
+            return heap.sorted(buf);
+        }
+
+        fn winningMove(p1: Place, p2: Place, score: Score, buf: []Move) []Move {
+            buf[0] = Move{
+                .places = [2]Place{ p1, p2 },
+                .player = score.winner.player(),
+                .score = score.score,
+            };
+            return buf[0..1];
+        }
+
+        const Score = struct { score: i32, winner: Stone };
+        const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
+        const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
+
+        fn cmpBlack(_: void, a: Move, b: Move) bool {
+            return a.score < b.score;
+        }
+
+        fn cmpWhite(_: void, a: Move, b: Move) bool {
+            return a.score > b.score;
+        }
+
+        fn ratePlace(self: Self, place: Place, stone: Stone) Score {
             const x = place.x;
             const y = place.y;
             var score: i32 = 0;
-
-            defer {
-                self.board[y][x] = stone;
-                self.n_moves += 1;
-            }
 
             {
                 const start_x: usize = @max(x, 5) - 5;
@@ -153,42 +254,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             }
         }
 
-        pub fn makeMove(self: *Self, move: Move) void {
-            self.board[move.y][move.x] = Stone.fromPlayer(move.player);
-            self.moves[self.n_moves] = move;
-            self.n_moves += 1;
-        }
-
-        pub fn possibleMoves(self: Self, buf: []Move) []Move {
-            var places: [board_size][board_size]bool = [1][board_size]bool{[1]bool{false} ** board_size} ** board_size;
-            for (self.moves[0..self.n_moves]) |move| {
-                const x_start = @max(0, move.x - 2);
-                const x_end = @min(board_size, move.x + 3);
-                const y_start = @max(0, move.y - 2);
-                const y_end = @min(board_size, move.y + 3);
-                for (y_start..y_end) |y| {
-                    for (x_start..x_end) |x| {
-                        places[y][x] = true;
-                    }
-                }
-            }
-            for (self.moves[0..self.n_moves]) |move| {
-                places[move.y][move.x] = false;
-            }
-
-            var len: usize = 0;
-            for (0..board_size) |y| {
-                for (0..board_size) |x| {
-                    if (places[y][x]) {
-                        buf[len] = Move.init(x, y);
-                        len += 1;
-                    }
-                }
-            }
-            return buf[0..len];
-        }
-
-        pub fn scoreBoard(self: Self) Score {
+        fn scoreBoard(self: Self) Score {
             var result: i32 = 0;
 
             for (0..board_size) |a| {
@@ -301,7 +367,11 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         const Self = @This();
 
         inline fn nextStone(self: Self) Stone {
-            return if ((self.move_number + 3) & 2 == 2) .black else .white;
+            return if (self.n_moves % 2 == 0) .black else .white;
+        }
+
+        pub inline fn nextPlayer(self: Self) Player {
+            return if (self.n_moves % 2 == 0) .first else .second;
         }
 
         pub fn printBoard(self: Self, move: Move) void {
@@ -420,7 +490,7 @@ test "bench2" {
     var game = Game{};
     for (0..10_000) |_| {
         for (0..100) |_| {
-            const r = game.placeStone(Game.Place.init(9, 9), if (rng.next() % 2 == 0) .black else .white);
+            const r = game.ratePlace(Game.Place.init(9, 9), if (rng.next() % 2 == 0) .black else .white);
             result += r.score;
         }
     }
@@ -440,9 +510,42 @@ test "placeStone" {
         const y: usize = @intCast(rng.next() % 19);
         const stone: Game.Stone = if (rng.next() % 2 == 0) .black else .white;
         if (game.board[y][x] != .none) continue;
-        const r = game.placeStone(Game.Place.init(x, y), stone);
+        const r = game.ratePlace(Game.Place.init(x, y), stone);
+        game.board[y][x] = stone;
         score += r.score;
         const score2 = game.scoreBoard();
         try std.testing.expectEqual(score2.score, score);
+    }
+}
+
+test "possibleMoves" {
+    const Player = enum {
+        second,
+        none,
+        first,
+
+        fn str(self: @This()) []const u8 {
+            return switch (self) {
+                .none => ".",
+                .first => "X",
+                .second => "O",
+            };
+        }
+    };
+    const Game = C6(Player, 19, 300);
+    var game = Game{};
+
+    var rng = Prng.init(1);
+    const x: usize = @intCast(rng.next() % 19);
+    const y: usize = @intCast(rng.next() % 19);
+    var buf: [Game.maxMoves()]Game.Move = undefined;
+    const rate = game.ratePlace(Game.Place.init(x, y), .black);
+    print("\nrate {d}", .{rate.score});
+    game.board[y][x] = .black;
+    game.n_moves += 1;
+    game.printBoard(undefined);
+    for (game.possibleMoves(&buf), 1..) |move, i| {
+        print("\n {d}: ", .{i});
+        move.print();
     }
 }
