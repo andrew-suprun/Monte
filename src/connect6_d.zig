@@ -464,20 +464,20 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
 test C6 {
     const Player = enum { second, none, first };
-    const Game = C6(Player, 19);
-    var board = Game.init();
-    const move = Game.Move.init(8, 9, .second);
-    board.makeMove(move);
-    board.printSelf(move);
-    const score = board.score();
+    const Game = C6(Player, 19, 300);
+    var game = Game{};
+    const move = Game.Move{ .places = [2]Game.Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first, .min_result = .second, .max_result = .first };
+    game.makeMove(move);
+    game.printBoard(move);
+    const score = game.debugScoreBoard();
     print("\nscore = {d} winner = {any}\n", .{ score.score, score.winner });
-    var buf: [Game.max_moves]Game.Move = undefined;
-    const moves = board.possibleMoves(&buf);
+    var buf: [Game.maxMoves()]Game.Move = undefined;
+    const moves = game.possibleMoves(&buf);
     print("\npossible moves {d}", .{moves.len});
     for (moves) |m| {
-        board.makeMove(m, .second);
+        game.makeMove(m);
     }
-    board.printSelf(move);
+    game.printBoard(move);
 }
 
 test "bench1" {
@@ -494,7 +494,7 @@ test "bench1" {
         }
     }
     const nanos = start.read();
-    print("\n{d} result {d}\n", .{ nanos, result });
+    print("\n{d} result {d}\n", .{ nanos / 1_000_000, result });
 }
 
 test "bench2" {
@@ -511,7 +511,7 @@ test "bench2" {
         }
     }
     const nanos = start.read();
-    print("\n{d} result {d}\n", .{ nanos, result });
+    print("\n{d} result {d}\n", .{ nanos / 1_000_000, result });
 }
 
 test "placeStone" {
@@ -548,7 +548,7 @@ test "possibleMoves" {
             };
         }
     };
-    const Game = C6(Player, 19, 300);
+    const Game = C6(Player, 19, 30);
     var game = Game{};
 
     var rng = Prng.init(1);
