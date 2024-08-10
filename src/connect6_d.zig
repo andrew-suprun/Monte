@@ -10,8 +10,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
         const Self = @This();
 
-        // TODO unpub
-        pub const Place = struct {
+        const Place = struct {
             x: u8,
             y: u8,
 

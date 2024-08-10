@@ -21,11 +21,11 @@ pub fn main() !void {
     second.deinit();
 
     const result = main_loop: {
-        var move = Game.Move{ .places = [2]Game.Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first, .min_result = .second, .max_result = .first };
+        var move = Game.Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first, .min_result = .second, .max_result = .first };
         first.game.makeMove(move);
         second.game.makeMove(move);
 
-        move = Game.Move{ .places = [2]Game.Place{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second, .min_result = .second, .max_result = .first };
+        move = Game.Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second, .min_result = .second, .max_result = .first };
         first.game.makeMove(move);
         second.game.makeMove(move);
 
