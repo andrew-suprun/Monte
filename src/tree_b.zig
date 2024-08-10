@@ -2,22 +2,34 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub const Player = enum(u8) { second, none, first };
+pub const Player = enum(u8) {
+    second,
+    none,
+    first,
 
-pub fn SearchTree(Game: type, comptime explore_factor: f32) type {
+    pub fn str(self: @This()) []const u8 {
+        return switch (self) {
+            .second => "O",
+            .none => "-",
+            .first => "X",
+        };
+    }
+};
+
+pub fn SearchTree(Game: type) type {
     return struct {
         root: Node,
         game: Game,
         allocator: Allocator,
 
-        const Self = SearchTree(Game, explore_factor);
-        const Node = @import("node.zig").Node(Game, Player, explore_factor);
+        const Self = @This();
+        const Node = @import("node_b.zig").Node(Game, Player);
         const Stats = @import("stats.zig").Stats(Player);
 
         pub fn init(allocator: Allocator) Self {
             return Self{
                 .root = Node{ .move = std.mem.zeroInit(Game.Move, .{}) },
-                .game = Game.init(),
+                .game = Game{},
                 .allocator = allocator,
             };
         }
@@ -31,19 +43,19 @@ pub fn SearchTree(Game: type, comptime explore_factor: f32) type {
 
         pub fn expand(self: *Self) void {
             var expand_game = self.game;
-            var stats = Stats{};
-            self.expandWithStats(&self.root, &expand_game, &stats);
+            self.expandRecursive(&self.root, &expand_game);
         }
 
-        pub fn expandWithStats(self: *Self, node: *Node, game: *Game, stats: *Stats) void {
-            defer node.updateStats(stats);
-
+        pub fn expandRecursive(self: *Self, node: *Node, game: *Game) void {
             if (node.children.len > 0) {
-                const child = node.selectChild();
+                const child = if (node.children[0].move.player == .first)
+                    node.selectChild(.first)
+                else
+                    node.selectChild(.second);
 
-                if (game.makeMove(child.move) == null) {
-                    self.expandWithStats(child, game, stats);
-                }
+                game.makeMove(child.move);
+                self.expandRecursive(child, game);
+                node.updateStats();
                 return;
             }
 
@@ -52,36 +64,8 @@ pub fn SearchTree(Game: type, comptime explore_factor: f32) type {
 
             node.children = self.allocator.alloc(Node, moves.len) catch unreachable;
             for (node.children, moves) |*child, move| {
-                child.* = Node{};
-                child.move = move;
+                child.* = Node{ .move = move };
             }
-
-            stats.n_rollouts = @floatFromInt(node.children.len);
-            for (node.children) |*child| {
-                var rollout_game = game.*;
-                const move_result = rollout_game.makeMove(child.move);
-                if (move_result) |result| {
-                    child.max_result = result;
-                    child.min_result = result;
-                    if (result == child.move.player) {
-                        return;
-                    }
-                    continue;
-                }
-                const rollout_result = rollout_game.rollout();
-                switch (rollout_result) {
-                    .first => {
-                        child.stats.rollout_diff = 1;
-                        stats.rollout_diff += 1;
-                    },
-                    .second => {
-                        child.stats.rollout_diff = -1;
-                        stats.rollout_diff -= 1;
-                    },
-                    else => {},
-                }
-            }
-            return;
         }
 
         pub fn bestMove(self: Self) Game.Move {
@@ -111,8 +95,8 @@ pub fn SearchTree(Game: type, comptime explore_factor: f32) type {
             return buf;
         }
 
-        pub fn commitMove(self: *Self, move: Game.Move) ?Player {
-            if (self.game.makeMove(move)) |winner| return winner;
+        pub fn commitMove(self: *Self, move: Game.Move) void {
+            self.game.makeMove(move);
             var new_root: ?Node = null;
             for (self.root.children) |*child| {
                 if (child.move.eql(move)) {
@@ -125,10 +109,8 @@ pub fn SearchTree(Game: type, comptime explore_factor: f32) type {
             if (new_root) |root| {
                 self.root = root;
             } else {
-                self.root = Node{};
-                self.root.move = move;
+                self.root = Node{ .move = move };
             }
-            return null;
         }
 
         pub fn debugSelfCheck(self: Self) void {

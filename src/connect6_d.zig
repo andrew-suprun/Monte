@@ -8,6 +8,9 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         board: [board_size][board_size]Stone = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
         n_moves: usize = 0,
 
+        const Self = @This();
+
+        // TODO unpub
         pub const Place = struct {
             x: u8,
             y: u8,
@@ -20,9 +23,19 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         pub const Move = struct {
             places: [2]Place,
             player: Player,
+            min_result: Player,
+            max_result: Player,
             score: i32,
 
-            fn print(self: @This()) void {
+            pub fn eql(self: @This(), other: @This()) bool {
+                const p1 = self.places[0];
+                const p2 = self.places[1];
+                const o1 = other.places[0];
+                const o2 = other.places[1];
+                return p1.x == o1.x and p1.y == o1.y and p2.x == o2.x and p2.y == o2.y;
+            }
+
+            pub fn print(self: @This()) void {
                 std.debug.print("[{}:{}, {}:{}, {s}, {d}]", .{
                     self.places[0].x,
                     self.places[0].y,
@@ -81,27 +94,29 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             }
 
             return if (self.nextStone() == .black)
-                self.selectMoves(place_list[0..n_places], self.nextPlayer(), .black, buf)
+                self.selectMoves(place_list[0..n_places], .black, buf)
             else
-                self.selectMoves(place_list[0..n_places], self.nextPlayer(), .white, buf);
+                self.selectMoves(place_list[0..n_places], .white, buf);
         }
 
-        fn selectMoves(self: *Self, place_list: []Place, player: Player, comptime stone: Stone, buf: []Move) []Move {
+        fn selectMoves(self: *Self, place_list: []Place, comptime stone: Stone, buf: []Move) []Move {
             var heap = if (stone == .black) HeapBlack.init({}) else HeapWhite.init({});
             for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
                 const score1 = self.ratePlace(p1, stone);
                 if (score1.winner != .none) {
-                    return winningMove(p1, p1, score1, buf);
+                    return winningMove(score1.winner, p1, p1, score1, buf);
                 }
                 self.board[p1.y][p1.x] = stone;
                 for (place_list[i + 1 .. place_list.len]) |p2| {
                     const score2 = self.ratePlace(p2, stone);
                     if (score2.winner != .none) {
-                        return winningMove(p1, p2, score2, buf);
+                        return winningMove(score1.winner, p1, p2, score2, buf);
                     }
                     heap.add(Move{
                         .places = [2]Place{ p1, p2 },
-                        .player = player,
+                        .player = stone.player(),
+                        .min_result = .second,
+                        .max_result = .first,
                         .score = score1.score + score2.score,
                     });
                 }
@@ -110,11 +125,14 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return heap.sorted(buf);
         }
 
-        fn winningMove(p1: Place, p2: Place, score: Score, buf: []Move) []Move {
+        fn winningMove(winner: Stone, p1: Place, p2: Place, score: Score, buf: []Move) []Move {
+            const w = winner.player();
             buf[0] = Move{
                 .places = [2]Place{ p1, p2 },
                 .player = score.winner.player(),
                 .score = score.score,
+                .min_result = w,
+                .max_result = w,
             };
             return buf[0..1];
         }
@@ -218,6 +236,50 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return .{ .score = score, .winner = .none };
         }
 
+        const Stone = enum(u8) {
+            none = 0x00,
+            black = 0x01,
+            white = 0x10,
+
+            fn fromPlayer(p: Player) @This() {
+                return switch (p) {
+                    .none => .none,
+                    .first => .black,
+                    .second => .white,
+                };
+            }
+
+            fn player(self: @This()) Player {
+                return switch (self) {
+                    .none => .none,
+                    .black => .first,
+                    .white => .second,
+                };
+            }
+
+            fn str(self: @This()) []const u8 {
+                return switch (self) {
+                    .none => "=",
+                    .black => "X",
+                    .white => "O",
+                };
+            }
+        };
+
+        inline fn nextStone(self: Self) Stone {
+            return if (self.n_moves % 2 == 0) .black else .white;
+        }
+
+        inline fn nextPlayer(self: Self) Player {
+            return if (self.n_moves % 2 == 0) .first else .second;
+        }
+
+        const one_stone = 1;
+        const two_stones = 3;
+        const three_stones = 7;
+        const four_stones = 15;
+        const five_stones = 31;
+
         fn calcDelta(stones: i32, stone: Stone) Score {
             if (stone == .black) {
                 const score: i32 = switch (stones) {
@@ -254,7 +316,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             }
         }
 
-        fn scoreBoard(self: Self) Score {
+        fn debugScoreBoard(self: Self) Score {
             var result: i32 = 0;
 
             for (0..board_size) |a| {
@@ -270,7 +332,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     result += switch (h_stones) {
                         0x06 => return .{ .score = result, .winner = .black },
                         0x60 => return .{ .score = result, .winner = .white },
-                        else => rate(h_stones),
+                        else => debugRate(h_stones),
                     };
                     h_stones -= @intFromEnum(self.board[a][b - 5]);
 
@@ -278,7 +340,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     result += switch (v_stones) {
                         0x06 => return .{ .score = result, .winner = .black },
                         0x60 => return .{ .score = result, .winner = .white },
-                        else => rate(v_stones),
+                        else => debugRate(v_stones),
                     };
                     v_stones -= @intFromEnum(self.board[b - 5][a]);
                 }
@@ -297,7 +359,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     result += switch (sw_stones) {
                         0x06 => return .{ .score = result, .winner = .black },
                         0x60 => return .{ .score = result, .winner = .white },
-                        else => rate(sw_stones),
+                        else => debugRate(sw_stones),
                     };
                     sw_stones -= @intFromEnum(self.board[y + i - 5][i - 5]);
 
@@ -305,7 +367,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     result += switch (se_stones) {
                         0x06 => return .{ .score = result, .winner = .black },
                         0x60 => return .{ .score = result, .winner = .white },
-                        else => rate(se_stones),
+                        else => debugRate(se_stones),
                     };
                     se_stones -= @intFromEnum(self.board[y + i - 5][board_size + 4 - i]);
                 }
@@ -325,7 +387,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     result += switch (ne_stones) {
                         0x06 => return .{ .score = result, .winner = .black },
                         0x60 => return .{ .score = result, .winner = .white },
-                        else => rate(ne_stones),
+                        else => debugRate(ne_stones),
                     };
                     ne_stones -= @intFromEnum(self.board[i - 5][x + i - 5]);
 
@@ -333,7 +395,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     result += switch (nw_stones) {
                         0x06 => return .{ .score = result, .winner = .black },
                         0x60 => return .{ .score = result, .winner = .white },
-                        else => rate(nw_stones),
+                        else => debugRate(nw_stones),
                     };
                     nw_stones -= @intFromEnum(self.board[i - 5][board_size + 4 - x - i]);
                 }
@@ -342,13 +404,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return .{ .score = result, .winner = .none };
         }
 
-        const one_stone = 1;
-        const two_stones = 3;
-        const three_stones = 7;
-        const four_stones = 15;
-        const five_stones = 31;
-
-        fn rate(stones: i32) i32 {
+        fn debugRate(stones: i32) i32 {
             return switch (stones) {
                 0x01 => one_stone,
                 0x02 => two_stones,
@@ -362,16 +418,6 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                 0x50 => -five_stones,
                 else => 0,
             };
-        }
-
-        const Self = @This();
-
-        inline fn nextStone(self: Self) Stone {
-            return if (self.n_moves % 2 == 0) .black else .white;
-        }
-
-        pub inline fn nextPlayer(self: Self) Player {
-            return if (self.n_moves % 2 == 0) .first else .second;
         }
 
         pub fn printBoard(self: Self, move: Move) void {
@@ -413,36 +459,6 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             }
             print(" |", .{});
         }
-
-        const Stone = enum(u8) {
-            none = 0x00,
-            black = 0x01,
-            white = 0x10,
-
-            fn fromPlayer(p: Player) @This() {
-                return switch (p) {
-                    .none => .none,
-                    .first => .black,
-                    .second => .white,
-                };
-            }
-
-            fn player(self: @This()) Player {
-                return switch (self) {
-                    .none => .none,
-                    .black => .first,
-                    .white => .second,
-                };
-            }
-
-            fn str(self: @This()) []const u8 {
-                return switch (self) {
-                    .none => "=",
-                    .black => "X",
-                    .white => "O",
-                };
-            }
-        };
     };
 }
 
@@ -474,7 +490,7 @@ test "bench1" {
     for (0..10_000) |_| {
         for (0..100) |_| {
             game.board[9][9] = if (rng.next() % 2 == 0) .black else .white;
-            result += game.scoreBoard().score;
+            result += game.debugScoreBoard().score;
         }
     }
     const nanos = start.read();
@@ -513,7 +529,7 @@ test "placeStone" {
         const r = game.ratePlace(Game.Place.init(x, y), stone);
         game.board[y][x] = stone;
         score += r.score;
-        const score2 = game.scoreBoard();
+        const score2 = game.debugScoreBoard();
         try std.testing.expectEqual(score2.score, score);
     }
 }

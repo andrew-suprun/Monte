@@ -3,18 +3,16 @@ const math = std.math;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
-const Prng = std.rand.Random.DefaultPrng;
 
-const tree = @import("tree.zig");
-const Game = @import("connect6.zig").C6(tree.Player, 19, 6);
+const tree = @import("tree_b.zig");
+const Game = @import("connect6_d.zig").C6(tree.Player, 19, 6);
 // const Game = @import("ttt.zig").TicTacToe(tree.Player);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var rng = Prng.init(@intCast(std.time.microTimestamp()));
 
-    const Tree = tree.SearchTree(Game, 2);
+    const Tree = tree.SearchTree(Game);
 
     var first = Tree.init(allocator);
     first.deinit();
@@ -22,87 +20,40 @@ pub fn main() !void {
     var second = Tree.init(allocator);
     second.deinit();
 
-    var result: tree.Player = undefined;
-    var move: Game.Move = undefined;
-    main_loop: while (true) {
-        const player = first.game.nextPlayer();
-        if (player == .first) {
-            { // DEBUG
-                var buf: [Game.maxMoves()]Game.Move = undefined;
-                const moves = first.game.possibleMoves(&buf);
-                print("\npossible moves: ", .{});
-                for (moves) |m| {
-                    m.print();
-                    print(", ", .{});
-                }
-            }
+    const result = main_loop: {
+        var move = Game.Move{ .places = [2]Game.Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first, .min_result = .second, .max_result = .first };
+        first.game.makeMove(move);
+        second.game.makeMove(move);
 
-            for (0..100_000) |_| {
+        move = Game.Move{ .places = [2]Game.Place{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second, .min_result = .second, .max_result = .first };
+        first.game.makeMove(move);
+        second.game.makeMove(move);
+
+        while (true) {
+            for (0..1000) |_| {
                 if (first.root.min_result == first.root.max_result) {
-                    result = first.root.min_result;
-                    if (debug) first.debugSelfCheck();
-                    break :main_loop;
+                    break :main_loop first.root.min_result;
                 }
                 first.expand();
             }
             move = first.bestMove();
-            _ = second.game.makeMove(move);
-        } else {
-            var places: [2]Game.Place = undefined;
-            inline for (0..2) |i| {
-                const place = second.game.rolloutPlace(&rng);
-                if (place) |p| {
-                    places[i] = p;
-                    _ = second.game.addStone(p, Game.stoneFromPlayer(.second));
-                } else {
-                    result = .none;
-                    break :main_loop;
-                }
-            }
-            move = Game.Move{
-                .player = .second,
-                .next_player = .first,
-                .places = .{ places[0], places[1] },
-            };
+            if (move.max_result == move.min_result) break :main_loop move.max_result;
+            first.commitMove(move);
+            second.commitMove(move);
+            print("\n----------\nmove: ", .{});
+            move.print();
+            first.game.printBoard(move);
+            second.expand();
+            move = second.bestMove();
+            if (move.max_result == move.min_result) break :main_loop move.max_result;
+            first.commitMove(move);
+            second.commitMove(move);
+            print("\n----------\nmove: ", .{});
+            move.print();
+            first.game.printBoard(move);
         }
-        _ = first.commitMove(move);
-
-        if (debug) first.debugSelfCheck();
-
-        print("\n----------\nmove: ", .{});
-        move.print();
-        first.game.printBoard(move);
-        // first.game.printScores(engine.game.scores, "");
-        // first.debugPrint();
-        // if (result) |winner| {
-        //     print("\nWinner {any}\n", .{winner});
-        //     break :main_loop;
-        // }
-    }
-    print("\nWinner: {s}", .{Game.playerStr(result)});
-
-    print("\n\n########################\n", .{});
-
-    first.debugPrint();
-    while (true) {
-        { // DEBUG
-            var buf: [Game.maxMoves()]Game.Move = undefined;
-            const moves = first.game.possibleMoves(&buf);
-            print("\npossible moves: ", .{});
-            for (moves) |m| {
-                m.print();
-                print(", ", .{});
-            }
-        }
-
-        move = first.bestMove();
-        const winner = first.commitMove(move);
-        print("\n----------\nmove: ", .{});
-        move.print();
-        first.game.printBoard(move);
-        if (winner != null) break;
-    }
-    print("\n===\n", .{});
+    };
+    print("\nresult = {s}", .{result.str()});
 }
 
 test {
