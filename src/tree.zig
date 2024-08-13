@@ -35,17 +35,14 @@ pub fn SearchTree(Game: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            for (self.root.children) |*child| {
-                child.deinit(self.allocator);
-            }
+            self.root.deinit(self.allocator);
         }
 
         pub fn expand(self: *Self) void {
-            var expand_game = self.game;
-            self.expandRecursive(&self.root, &expand_game, self.acc);
+            self.expandRecursive(&self.root, self.acc);
         }
 
-        pub fn expandRecursive(self: *Self, node: *Node, game: *Game, acc: i32) void {
+        pub fn expandRecursive(self: *Self, node: *Node, acc: i32) void {
             defer node.updateStats();
 
             if (node.children.len > 0) {
@@ -54,13 +51,14 @@ pub fn SearchTree(Game: type) type {
                 else
                     node.selectChild(.second);
 
-                game.makeMove(child.move);
-                self.expandRecursive(child, game, acc + child.move.score);
+                self.game.makeMove(child.move);
+                self.expandRecursive(child, acc + child.move.score);
+                self.game.undoMove(child.move);
                 return;
             }
 
             var buf: [Game.maxMoves()]Game.Move = undefined;
-            const moves = game.possibleMoves(&buf);
+            const moves = self.game.possibleMoves(&buf);
 
             node.children = self.allocator.alloc(Node, moves.len) catch unreachable;
             for (node.children, moves) |*child, move| {

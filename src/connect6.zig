@@ -59,6 +59,14 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             self.n_moves += 1;
         }
 
+        pub fn undoMove(self: *Self, move: Move) void {
+            const p1 = move.places[0];
+            const p2 = move.places[1];
+            self.board[p1.y][p1.x] = .none;
+            self.board[p2.y][p2.x] = .none;
+            self.n_moves -= 1;
+        }
+
         pub fn possibleMoves(self: *Self, buf: []Move) []Move {
             var places: [board_size][board_size]bool = [1][board_size]bool{[1]bool{false} ** board_size} ** board_size;
             for (0..board_size) |y| {

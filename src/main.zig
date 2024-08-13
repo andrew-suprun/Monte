@@ -106,12 +106,12 @@ test "expand" {
     move = Game.Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
     stree.commitMove(move);
 
-    for (0..1011) |_| {
+    var timer = try std.time.Timer.start();
+    for (0..1000) |_| {
         stree.expand();
     }
+    print("\ntime {}ms", .{timer.read() / 1_000_000});
     stree.root.debugSelfCheckRecursive(stree.game);
-    stree.game.printBoard(undefined);
-    stree.debugPrintChildren();
 
     print("\n\nbest line\n", .{});
     var buf: [20]Game.Move = undefined;
@@ -124,6 +124,4 @@ test "expand" {
     }
 
     print("\n\n", .{});
-    stree.debugPrintChildren();
-    print("\n", .{});
 }
