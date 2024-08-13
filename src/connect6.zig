@@ -113,15 +113,28 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
         fn selectMoves(self: *Self, place_list: []Place, comptime stone: Stone, buf: []Move) []Move {
             var heap = if (stone == .black) HeapBlack.init({}) else HeapWhite.init({});
+
+            var rates: [board_size * board_size]Score = undefined;
+            for (place_list, 0..) |place, i| {
+                rates[i] = self.ratePlace(place, stone);
+            }
+
             for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
-                const score1 = self.ratePlace(p1, stone);
+                const score1 = rates[i];
                 if (score1.winner != .none) {
                     return winningMove(p1, p1, score1, buf);
                 }
-                self.board[p1.y][p1.x] = stone;
-                defer self.board[p1.y][p1.x] = .none;
-                for (place_list[i + 1 .. place_list.len]) |p2| {
-                    const score2 = self.ratePlace(p2, stone);
+                for (i + 1..place_list.len) |j| {
+                    var score2: Score = undefined;
+                    const p2 = place_list[j];
+                    if (p1.x == p2.x or p1.y == p2.y or p1.x + p1.y == p2.x + p2.y or p1.x + p2.y == p2.x + p1.y) {
+                        self.board[p1.y][p1.x] = stone;
+                        score2 = self.ratePlace(p2, stone);
+                        self.board[p1.y][p1.x] = .none;
+                    } else {
+                        score2 = rates[j];
+                    }
+
                     if (score2.winner != .none) {
                         return winningMove(p1, p2, score2, buf);
                     }
@@ -578,6 +591,47 @@ test "possibleMoves" {
 
     for (0..1000) |_| {
         n_moves += game.possibleMoves(&buf).len;
+    }
+
+    print("\ntime {}ms", .{timer.read() / 1_000_000});
+    print("\nmoves {d}\n", .{n_moves});
+}
+
+test "possiblePlaces" {
+    const Player = enum {
+        second,
+        none,
+        first,
+
+        fn str(self: @This()) []const u8 {
+            return switch (self) {
+                .none => ".",
+                .first => "X",
+                .second => "O",
+            };
+        }
+    };
+    const Game = C6(Player, 19, 100);
+    var game = Game{};
+
+    var move = Game.Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    game.makeMove(move);
+
+    move = Game.Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
+    game.makeMove(move);
+
+    move = Game.Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
+    game.makeMove(move);
+
+    move = Game.Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
+    game.makeMove(move);
+
+    var places: [19 * 19]Game.Place = undefined;
+    var timer = try std.time.Timer.start();
+    var n_moves: usize = 0;
+
+    for (0..1_000_000) |_| {
+        n_moves += game.possiblePlaces(&places).len;
     }
 
     print("\ntime {}ms", .{timer.read() / 1_000_000});

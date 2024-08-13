@@ -114,13 +114,15 @@ test {
 
 test "heap" {
     var prng = Prng.init(@intCast(std.time.microTimestamp()));
-    var heap = Heap(usize, usize, cmp, 100).init(42);
     var timer = try std.time.Timer.start();
-    for (0..1_000_000_000) |_| {
-        heap.add(prng.next() % 1_000_000_000);
+    for (0..1_000_000) |_| {
+        var heap = Heap(usize, usize, cmp, 100).init(42);
+        for (0..1000) |_| {
+            heap.add(prng.next() % 1000);
+        }
+        var buf: [100]usize = undefined;
+        const sorted = heap.unsorted(&buf);
+        assert(sorted.len == 100);
     }
-    var buf: [100]usize = undefined;
-    const sorted = heap.unsorted(&buf);
-    assert(sorted.len == 100);
     print("\ntime {d}ms\n", .{timer.read() / 1_000_000});
 }
