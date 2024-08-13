@@ -22,8 +22,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         pub const Move = struct {
             places: [2]Place,
             player: Player,
-            min_result: Player,
-            max_result: Player,
+            winner: ?Player = null,
             score: i32,
 
             pub fn eql(self: @This(), other: @This()) bool {
@@ -35,12 +34,13 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             }
 
             pub fn print(self: @This()) void {
-                std.debug.print("[{}:{}, {}:{}, {s}, {d}]", .{
+                std.debug.print("[{}:{}, {}:{}, player: {s}, winner: {s}, score: {d}]", .{
                     self.places[0].x,
                     self.places[0].y,
                     self.places[1].x,
                     self.places[1].y,
                     self.player.str(),
+                    if (self.winner) |w| w.str() else "?",
                     self.score,
                 });
             }
@@ -103,49 +103,23 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
                 const score1 = self.ratePlace(p1, stone);
                 if (score1.winner != .none) {
-                    return winningMove(score1.winner, p1, p1, score1, buf);
+                    return winningMove(p1, p1, score1, buf);
                 }
                 self.board[p1.y][p1.x] = stone;
+                defer self.board[p1.y][p1.x] = .none;
                 for (place_list[i + 1 .. place_list.len]) |p2| {
                     const score2 = self.ratePlace(p2, stone);
                     if (score2.winner != .none) {
-                        return winningMove(score1.winner, p1, p2, score2, buf);
+                        return winningMove(p1, p2, score2, buf);
                     }
                     heap.add(Move{
                         .places = [2]Place{ p1, p2 },
                         .player = stone.player(),
-                        .min_result = .second,
-                        .max_result = .first,
                         .score = score1.score + score2.score,
                     });
                 }
-                self.board[p1.y][p1.x] = .none;
             }
             return heap.sorted(buf);
-        }
-
-        fn winningMove(winner: Stone, p1: Place, p2: Place, score: Score, buf: []Move) []Move {
-            const w = winner.player();
-            buf[0] = Move{
-                .places = [2]Place{ p1, p2 },
-                .player = score.winner.player(),
-                .score = score.score,
-                .min_result = w,
-                .max_result = w,
-            };
-            return buf[0..1];
-        }
-
-        const Score = struct { score: i32, winner: Stone };
-        const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
-        const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
-
-        fn cmpBlack(_: void, a: Move, b: Move) bool {
-            return a.score < b.score;
-        }
-
-        fn cmpWhite(_: void, a: Move, b: Move) bool {
-            return a.score > b.score;
         }
 
         fn ratePlace(self: Self, place: Place, stone: Stone) Score {
@@ -235,6 +209,29 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return .{ .score = score, .winner = .none };
         }
 
+        fn winningMove(p1: Place, p2: Place, score: Score, buf: []Move) []Move {
+            const w = score.winner.player();
+            buf[0] = Move{
+                .places = [2]Place{ p1, p2 },
+                .player = score.winner.player(),
+                .score = if (score.winner == .black) 1024 else -1024,
+                .winner = w,
+            };
+            return buf[0..1];
+        }
+
+        const Score = struct { score: i32, winner: Stone };
+        const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
+        const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
+
+        fn cmpBlack(_: void, a: Move, b: Move) bool {
+            return a.score < b.score;
+        }
+
+        fn cmpWhite(_: void, a: Move, b: Move) bool {
+            return a.score > b.score;
+        }
+
         const Stone = enum(u8) {
             none = 0x00,
             black = 0x01,
@@ -276,8 +273,8 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         const one_stone = 1;
         const two_stones = 3;
         const three_stones = 7;
-        const four_stones = 15;
-        const five_stones = 31;
+        const four_stones = 31;
+        const five_stones = 32;
 
         fn calcDelta(stones: i32, stone: Stone) Score {
             if (stone == .black) {
@@ -465,7 +462,7 @@ test C6 {
     const Player = enum { second, none, first };
     const Game = C6(Player, 19, 300);
     var game = Game{};
-    const move = Game.Move{ .places = [2]Game.Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first, .min_result = .second, .max_result = .first };
+    const move = Game.Move{ .places = [2]Game.Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
     game.makeMove(move);
     game.printBoard(move);
     const score = game.debugScoreBoard();

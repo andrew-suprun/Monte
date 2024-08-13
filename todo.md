@@ -1,7 +1,7 @@
-* remove unnecessary `pub`s in connect6.zig
-* optimize (inlining)
-* try SIMD
+* optimize possibleMoves()
 * fine tune C6.calcScore()
+* fine tune max_moves
+* add randomization to bestMove()
 * minimal UI
 * multithreading
 * GUI
