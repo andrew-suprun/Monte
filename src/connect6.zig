@@ -68,6 +68,16 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         }
 
         pub fn possibleMoves(self: *Self, buf: []Move) []Move {
+            var place_list: [board_size * board_size]Place = undefined;
+            const places = self.possiblePlaces(&place_list);
+
+            return if (self.nextStone() == .black)
+                self.selectMoves(places, .black, buf)
+            else
+                self.selectMoves(places, .white, buf);
+        }
+
+        fn possiblePlaces(self: Self, place_list: []Place) []Place {
             var places: [board_size][board_size]bool = [1][board_size]bool{[1]bool{false} ** board_size} ** board_size;
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
@@ -89,7 +99,6 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                 }
             }
 
-            var place_list: [board_size * board_size]Place = undefined;
             var n_places: usize = 0;
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
@@ -99,11 +108,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     }
                 }
             }
-
-            return if (self.nextStone() == .black)
-                self.selectMoves(place_list[0..n_places], .black, buf)
-            else
-                self.selectMoves(place_list[0..n_places], .white, buf);
+            return place_list[0..n_places];
         }
 
         fn selectMoves(self: *Self, place_list: []Place, comptime stone: Stone, buf: []Move) []Move {
@@ -127,7 +132,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     });
                 }
             }
-            return heap.sorted(buf);
+            return heap.unsorted(buf);
         }
 
         fn ratePlace(self: Self, place: Place, stone: Stone) Score {
@@ -484,7 +489,7 @@ test C6 {
     game.printBoard(move);
 }
 
-test "bench1" {
+test "scoreBoard" {
     const Player = enum { second, none, first };
     const Game = C6(Player, 19, 300);
     var rng = Prng.init(1);
@@ -501,7 +506,7 @@ test "bench1" {
     print("\n{d} result {d}\n", .{ nanos / 1_000_000, result });
 }
 
-test "bench2" {
+test "ratePlace" {
     const Player = enum { second, none, first };
     const Game = C6(Player, 19, 300);
     var rng = Prng.init(1);
@@ -515,7 +520,7 @@ test "bench2" {
         }
     }
     const nanos = start.read();
-    print("\n{d} result {d}\n", .{ nanos / 1_000_000, result });
+    print("\ntime {d}ms result {d}\n", .{ nanos / 1_000_000, result });
 }
 
 test "placeStone" {
@@ -552,20 +557,29 @@ test "possibleMoves" {
             };
         }
     };
-    const Game = C6(Player, 19, 30);
+    const Game = C6(Player, 19, 100);
     var game = Game{};
 
-    var rng = Prng.init(1);
-    const x: usize = @intCast(rng.next() % 19);
-    const y: usize = @intCast(rng.next() % 19);
+    var move = Game.Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    game.makeMove(move);
+
+    move = Game.Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
+    game.makeMove(move);
+
+    move = Game.Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
+    game.makeMove(move);
+
+    move = Game.Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
+    game.makeMove(move);
+
     var buf: [Game.maxMoves()]Game.Move = undefined;
-    const rate = game.ratePlace(Game.Place.init(x, y), .black);
-    print("\nrate {d}", .{rate.score});
-    game.board[y][x] = .black;
-    game.n_moves += 1;
-    game.printBoard(undefined);
-    for (game.possibleMoves(&buf), 1..) |move, i| {
-        print("\n {d}: ", .{i});
-        move.print();
+    var timer = try std.time.Timer.start();
+    var n_moves: usize = 0;
+
+    for (0..1000) |_| {
+        n_moves += game.possibleMoves(&buf).len;
     }
+
+    print("\ntime {}ms", .{timer.read() / 1_000_000});
+    print("\nmoves {d}\n", .{n_moves});
 }
