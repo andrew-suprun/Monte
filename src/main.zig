@@ -6,8 +6,8 @@ const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const tree = @import("tree.zig");
 const c6 = @import("connect6.zig");
-const Game1 = c6.C6(tree.Player, 19, 64);
-const Game2 = c6.C6(tree.Player, 19, 64);
+const Game1 = c6.C6(tree.Player, 19, 32);
+const Game2 = c6.C6(tree.Player, 19, 32);
 const Move = c6.Move(tree.Player);
 
 pub fn main() !void {
@@ -29,7 +29,7 @@ pub fn main() !void {
     second.commitMove(move);
 
     while (true) {
-        for (0..1000) |i| {
+        for (0..10_000) |i| {
             if (first.root.min_result == first.root.max_result) {
                 print("\n expands.1 {d}", .{i});
                 break;
@@ -42,9 +42,10 @@ pub fn main() !void {
         print("\n----------\nmove: ", .{});
         move.print();
         first.game.printBoard(move);
+        // first.debugPrintChildren();
         if (move.winner) |_| break;
 
-        for (0..10000) |i| {
+        for (0..10_000) |i| {
             if (second.root.min_result == second.root.max_result) {
                 print("\n expands.2 {d}", .{i});
                 break;
@@ -57,6 +58,7 @@ pub fn main() !void {
         print("\n----------\nmove: ", .{});
         move.print();
         second.game.printBoard(move);
+        // second.debugPrintChildren();
         if (move.winner) |_| break;
     }
     print("\nDONE\n", .{});

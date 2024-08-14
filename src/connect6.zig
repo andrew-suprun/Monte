@@ -76,20 +76,20 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             var place_list: [board_size * board_size]Place = undefined;
             if (stone == .black) {
                 const scores = self.calcScores(.black);
-                const places = Self.possiblePlaces(.black, scores, &place_list);
+                const places = self.possiblePlaces(.black, scores, &place_list);
                 return self.selectMoves(.black, scores, places, buf);
             } else {
                 const scores = self.calcScores(.white);
-                const places = Self.possiblePlaces(.white, scores, &place_list);
+                const places = self.possiblePlaces(.white, scores, &place_list);
                 return self.selectMoves(.white, scores, places, buf);
             }
         }
 
-        fn possiblePlaces(comptime stone: Stone, scores: Scores, place_list: []Place) []Place {
+        fn possiblePlaces(self: Self, comptime stone: Stone, scores: Scores, place_list: []Place) []Place {
             var heap = if (stone == .black) HeapPlaceBlack.init(scores) else HeapPlaceWhite.init(scores);
             for (0..board_size) |y| {
                 for (0..board_size) |x| {
-                    heap.add(Place.init(x, y));
+                    if (self.board[y][x] == .none) heap.add(Place.init(x, y));
                 }
             }
             return heap.sorted(place_list);
@@ -318,12 +318,12 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return a.score > b.score;
         }
 
-        const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_moves / 2);
+        const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_moves);
         fn cmpPlaceBlack(scores: Scores, a: Place, b: Place) bool {
             return scores[a.y][a.x] < scores[b.y][b.x];
         }
 
-        const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_moves / 2);
+        const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_moves);
         fn cmpPlaceWhite(scores: Scores, a: Place, b: Place) bool {
             return scores[a.y][a.x] > scores[b.y][b.x];
         }
@@ -367,10 +367,10 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         }
 
         const one_stone = 1;
-        const two_stones = 3;
-        const three_stones = 7;
-        const four_stones = 31;
-        const five_stones = 32;
+        const two_stones = 4;
+        const three_stones = 16;
+        const four_stones = 64;
+        const five_stones = 128;
         const six_stones = 2048;
 
         fn calcScore(stone: Stone, stones: i32) i32 {
