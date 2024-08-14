@@ -16,7 +16,7 @@ pub const Player = enum(u8) {
     }
 };
 
-pub fn SearchTree(Game: type) type {
+pub fn SearchTree(Game: type, Move: type, comptime explore_factor: f32) type {
     return struct {
         root: Node,
         game: Game,
@@ -24,7 +24,7 @@ pub fn SearchTree(Game: type) type {
         allocator: Allocator,
 
         const Self = @This();
-        const Node = @import("node.zig").Node(Game, Player);
+        const Node = @import("node.zig").Node(Game, Move, Player, explore_factor);
 
         pub fn init(allocator: Allocator) Self {
             return Self{
@@ -57,7 +57,7 @@ pub fn SearchTree(Game: type) type {
                 return;
             }
 
-            var buf: [Game.maxMoves()]Game.Move = undefined;
+            var buf: [Game.maxMoves()]Move = undefined;
             const moves = self.game.possibleMoves(&buf);
 
             node.children = self.allocator.alloc(Node, moves.len) catch unreachable;
@@ -71,11 +71,11 @@ pub fn SearchTree(Game: type) type {
             }
         }
 
-        pub fn bestMove(self: Self) Game.Move {
+        pub fn bestMove(self: Self) Move {
             return self.root.bestMove();
         }
 
-        pub fn bestLine(self: Self, buf: []Game.Move) []Game.Move {
+        pub fn bestLine(self: Self, buf: []Move) []Move {
             var game = self.game;
             var node = self.root;
             for (0..buf.len) |i| {
@@ -97,7 +97,7 @@ pub fn SearchTree(Game: type) type {
             return buf;
         }
 
-        pub fn commitMove(self: *Self, move: Game.Move) void {
+        pub fn commitMove(self: *Self, move: Move) void {
             self.acc += move.score;
             self.game.makeMove(move);
             var new_root: ?Node = null;

@@ -3,54 +3,57 @@ const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 // const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
+pub fn Move(Player: type) type {
+    return struct {
+        places: [2]Place,
+        player: Player,
+        winner: ?Player = null,
+        score: i32,
+
+        pub fn eql(self: @This(), other: @This()) bool {
+            const p1 = self.places[0];
+            const p2 = self.places[1];
+            const o1 = other.places[0];
+            const o2 = other.places[1];
+            return p1.x == o1.x and p1.y == o1.y and p2.x == o2.x and p2.y == o2.y;
+        }
+
+        pub fn print(self: @This()) void {
+            std.debug.print("[{}:{}, {}:{}, player: {s}, winner: {s}, score: {d}]", .{
+                self.places[0].x,
+                self.places[0].y,
+                self.places[1].x,
+                self.places[1].y,
+                self.player.str(),
+                if (self.winner) |w| w.str() else "?",
+                self.score,
+            });
+        }
+    };
+}
+
+const Place = struct {
+    x: u8,
+    y: u8,
+
+    inline fn init(x: usize, y: usize) @This() {
+        return @This(){ .x = @intCast(x), .y = @intCast(y) };
+    }
+};
+
 pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: usize) type {
     return struct {
         board: [board_size][board_size]Stone = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
         n_moves: usize = 0,
 
         const Self = @This();
-
-        const Place = struct {
-            x: u8,
-            y: u8,
-
-            inline fn init(x: usize, y: usize) @This() {
-                return @This(){ .x = @intCast(x), .y = @intCast(y) };
-            }
-        };
-
-        pub const Move = struct {
-            places: [2]Place,
-            player: Player,
-            winner: ?Player = null,
-            score: i32,
-
-            pub fn eql(self: @This(), other: @This()) bool {
-                const p1 = self.places[0];
-                const p2 = self.places[1];
-                const o1 = other.places[0];
-                const o2 = other.places[1];
-                return p1.x == o1.x and p1.y == o1.y and p2.x == o2.x and p2.y == o2.y;
-            }
-
-            pub fn print(self: @This()) void {
-                std.debug.print("[{}:{}, {}:{}, player: {s}, winner: {s}, score: {d}]", .{
-                    self.places[0].x,
-                    self.places[0].y,
-                    self.places[1].x,
-                    self.places[1].y,
-                    self.player.str(),
-                    if (self.winner) |w| w.str() else "?",
-                    self.score,
-                });
-            }
-        };
+        const C6Move = Move(Player);
 
         pub fn maxMoves() comptime_int {
             return max_moves;
         }
 
-        pub fn makeMove(self: *Self, move: Move) void {
+        pub fn makeMove(self: *Self, move: C6Move) void {
             const stone = Stone.fromPlayer(move.player);
             const p1 = move.places[0];
             const p2 = move.places[1];
@@ -59,7 +62,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             self.n_moves += 1;
         }
 
-        pub fn undoMove(self: *Self, move: Move) void {
+        pub fn undoMove(self: *Self, move: C6Move) void {
             const p1 = move.places[0];
             const p2 = move.places[1];
             self.board[p1.y][p1.x] = .none;
@@ -67,7 +70,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             self.n_moves -= 1;
         }
 
-        pub fn possibleMoves(self: *Self, buf: []Move) []Move {
+        pub fn possibleMoves(self: *Self, buf: []C6Move) []C6Move {
             var place_list: [board_size * board_size]Place = undefined;
             const places = self.possiblePlaces(&place_list);
 
@@ -111,12 +114,25 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return place_list[0..n_places];
         }
 
-        fn selectMoves(self: *Self, place_list: []Place, comptime stone: Stone, buf: []Move) []Move {
+        fn selectMoves(self: *Self, place_list: []Place, comptime stone: Stone, buf: []C6Move) []C6Move {
             var heap = if (stone == .black) HeapBlack.init({}) else HeapWhite.init({});
 
             var rates: [board_size * board_size]Score = undefined;
+            var has_nonzero = false;
             for (place_list, 0..) |place, i| {
-                rates[i] = self.ratePlace(place, stone);
+                const rate = self.ratePlace(place, stone);
+                has_nonzero = has_nonzero or rate.score != 0;
+                rates[i] = rate;
+            }
+
+            if (!has_nonzero) {
+                buf[0] = C6Move{
+                    .places = [2]Place{ place_list[0], place_list[1] },
+                    .player = stone.player(),
+                    .score = 0,
+                    .winner = .none,
+                };
+                return buf[0..1];
             }
 
             for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
@@ -138,7 +154,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                     if (score2.winner != .none) {
                         return winningMove(p1, p2, score2, buf);
                     }
-                    heap.add(Move{
+                    heap.add(C6Move{
                         .places = [2]Place{ p1, p2 },
                         .player = stone.player(),
                         .score = score1.score + score2.score,
@@ -235,9 +251,9 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return .{ .score = score, .winner = .none };
         }
 
-        fn winningMove(p1: Place, p2: Place, score: Score, buf: []Move) []Move {
+        fn winningMove(p1: Place, p2: Place, score: Score, buf: []C6Move) []C6Move {
             const w = score.winner.player();
-            buf[0] = Move{
+            buf[0] = C6Move{
                 .places = [2]Place{ p1, p2 },
                 .player = score.winner.player(),
                 .score = if (score.winner == .black) 1024 else -1024,
@@ -247,14 +263,14 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         }
 
         const Score = struct { score: i32, winner: Stone };
-        const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
-        const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
+        const HeapBlack = @import("heap.zig").Heap(C6Move, void, cmpBlack, max_moves);
+        const HeapWhite = @import("heap.zig").Heap(C6Move, void, cmpWhite, max_moves);
 
-        fn cmpBlack(_: void, a: Move, b: Move) bool {
+        fn cmpBlack(_: void, a: C6Move, b: C6Move) bool {
             return a.score < b.score;
         }
 
-        fn cmpWhite(_: void, a: Move, b: Move) bool {
+        fn cmpWhite(_: void, a: C6Move, b: C6Move) bool {
             return a.score > b.score;
         }
 
@@ -442,7 +458,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             };
         }
 
-        pub fn printBoard(self: Self, move: Move) void {
+        pub fn printBoard(self: Self, move: C6Move) void {
             const place1 = move.places[0];
             const place2 = move.places[1];
             print("\n   |", .{});
@@ -488,12 +504,12 @@ test C6 {
     const Player = enum { second, none, first };
     const Game = C6(Player, 19, 300);
     var game = Game{};
-    const move = Game.Move{ .places = [2]Game.Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    const move = Move(Player){ .places = [2]Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
     game.makeMove(move);
     game.printBoard(move);
     const score = game.debugScoreBoard();
     print("\nscore = {d} winner = {any}\n", .{ score.score, score.winner });
-    var buf: [Game.maxMoves()]Game.Move = undefined;
+    var buf: [Game.maxMoves()]Move(Player) = undefined;
     const moves = game.possibleMoves(&buf);
     print("\npossible moves {d}", .{moves.len});
     for (moves) |m| {
@@ -528,7 +544,7 @@ test "ratePlace" {
     var game = Game{};
     for (0..10_000) |_| {
         for (0..100) |_| {
-            const r = game.ratePlace(Game.Place.init(9, 9), if (rng.next() % 2 == 0) .black else .white);
+            const r = game.ratePlace(Place.init(9, 9), if (rng.next() % 2 == 0) .black else .white);
             result += r.score;
         }
     }
@@ -548,7 +564,7 @@ test "placeStone" {
         const y: usize = @intCast(rng.next() % 19);
         const stone: Game.Stone = if (rng.next() % 2 == 0) .black else .white;
         if (game.board[y][x] != .none) continue;
-        const r = game.ratePlace(Game.Place.init(x, y), stone);
+        const r = game.ratePlace(Place.init(x, y), stone);
         game.board[y][x] = stone;
         score += r.score;
         const score2 = game.debugScoreBoard();
@@ -573,23 +589,23 @@ test "possibleMoves" {
     const Game = C6(Player, 19, 100);
     var game = Game{};
 
-    var move = Game.Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    var move = Move(Player){ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
     game.makeMove(move);
 
-    move = Game.Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
+    move = Move(Player){ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
     game.makeMove(move);
 
-    move = Game.Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
+    move = Move(Player){ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
     game.makeMove(move);
 
-    move = Game.Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
+    move = Move(Player){ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
     game.makeMove(move);
 
-    var buf: [Game.maxMoves()]Game.Move = undefined;
+    var buf: [Game.maxMoves()]Move(Player) = undefined;
     var timer = try std.time.Timer.start();
     var n_moves: usize = 0;
 
-    for (0..1000) |_| {
+    for (0..10_000) |_| {
         n_moves += game.possibleMoves(&buf).len;
     }
 
@@ -614,19 +630,19 @@ test "possiblePlaces" {
     const Game = C6(Player, 19, 100);
     var game = Game{};
 
-    var move = Game.Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    var move = Move(Player){ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
     game.makeMove(move);
 
-    move = Game.Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
+    move = Move(Player){ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
     game.makeMove(move);
 
-    move = Game.Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
+    move = Move(Player){ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
     game.makeMove(move);
 
-    move = Game.Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
+    move = Move(Player){ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
     game.makeMove(move);
 
-    var places: [19 * 19]Game.Place = undefined;
+    var places: [19 * 19]Place = undefined;
     var timer = try std.time.Timer.start();
     var n_moves: usize = 0;
 

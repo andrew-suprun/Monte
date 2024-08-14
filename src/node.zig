@@ -2,9 +2,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub fn Node(Game: type, Player: type) type {
+pub fn Node(Game: type, Move: type, Player: type, comptime explore_factor: f32) type {
     return struct {
-        move: Game.Move = undefined,
+        move: Move = undefined,
         children: []Self = &[_]Self{},
         score: i32 = 0,
         n_extentions: i32 = 0,
@@ -20,7 +20,7 @@ pub fn Node(Game: type, Player: type) type {
             allocator.free(self.children);
         }
 
-        pub fn bestMove(self: Self) Game.Move {
+        pub fn bestMove(self: Self) Move {
             var selected_child: *Self = &self.children[0];
             const player = selected_child.move.player;
             for (self.children[1..]) |*child| {
@@ -64,14 +64,16 @@ pub fn Node(Game: type, Player: type) type {
         }
 
         pub fn selectChild(self: Self, comptime player: Player) *Self {
+            const big_n = @log(@as(f32, @floatFromInt(self.n_extentions)));
             var selected_child: ?*Self = null;
-            var selected_score: i32 = std.math.minInt(i32);
+            var selected_score: f32 = -std.math.inf(f32);
             for (self.children) |*child| {
+                if (child.n_extentions == 0) return child;
                 if (child.max_result != child.min_result) {
                     const child_score = if (player == .first)
-                        4 * child.score - child.n_extentions
+                        explore_factor * @sqrt(big_n / @as(f32, @floatFromInt(child.n_extentions))) + @as(f32, @floatFromInt(child.score))
                     else
-                        -4 * child.score - child.n_extentions;
+                        explore_factor * @sqrt(big_n / @as(f32, @floatFromInt(child.n_extentions))) - @as(f32, @floatFromInt(child.score));
                     if (selected_child == null or selected_score < child_score) {
                         selected_child = child;
                         selected_score = child_score;
