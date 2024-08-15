@@ -19,11 +19,11 @@ pub fn Move(Player: type) type {
         }
 
         pub fn print(self: @This()) void {
-            std.debug.print("[{}:{}, {}:{}, player: {s}, winner: {s}, score: {d}]", .{
-                self.places[0].x,
-                self.places[0].y,
-                self.places[1].x,
-                self.places[1].y,
+            std.debug.print("[{c}{d}-{c}{d}, player: {s}, winner: {s}, score: {d}]", .{
+                @as(u8, @intCast(self.places[0].x)) + 'a',
+                19 - self.places[0].y,
+                @as(u8, @intCast(self.places[1].x)) + 'a',
+                19 - self.places[1].y,
                 self.player.str(),
                 if (self.winner) |w| w.str() else "?",
                 self.score,
@@ -318,12 +318,12 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return a.score > b.score;
         }
 
-        const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_moves);
+        const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_moves / 2);
         fn cmpPlaceBlack(scores: Scores, a: Place, b: Place) bool {
             return scores[a.y][a.x] < scores[b.y][b.x];
         }
 
-        const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_moves);
+        const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_moves / 2);
         fn cmpPlaceWhite(scores: Scores, a: Place, b: Place) bool {
             return scores[a.y][a.x] > scores[b.y][b.x];
         }
@@ -362,15 +362,11 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return if (self.n_moves % 2 == 0) .black else .white;
         }
 
-        inline fn nextPlayer(self: Self) Player {
-            return if (self.n_moves % 2 == 0) .first else .second;
-        }
-
         const one_stone = 1;
-        const two_stones = 4;
-        const three_stones = 16;
-        const four_stones = 64;
-        const five_stones = 128;
+        const two_stones = 5;
+        const three_stones = 20;
+        const four_stones = 60;
+        const five_stones = 120;
         const six_stones = 2048;
 
         fn calcScore(stone: Stone, stones: i32) i32 {
@@ -491,41 +487,33 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         pub fn printBoard(self: Self, move: C6Move) void {
             const place1 = move.places[0];
             const place2 = move.places[1];
-            print("\n   |", .{});
+            print("\n  ", .{});
             for (0..board_size) |i| {
-                print("{:2}", .{i % 10});
+                print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
             }
-            print(" |", .{});
-
-            print("\n---+", .{});
-            for (0..board_size) |_| {
-                print("--", .{});
-            }
-            print("-+---", .{});
 
             for (0..board_size) |y| {
-                print("\n{:2} |", .{y});
+                print("\n{:2}", .{19 - y});
                 for (0..board_size) |x| {
                     switch (self.board[y][x]) {
-                        .black => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print(" #", .{}) else print(" X", .{}),
-                        .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print(" @", .{}) else print(" O", .{}),
-                        else => print(" .", .{}),
+                        .black => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─#", .{}) else print("─X", .{}),
+                        .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
+                        else => {
+                            if (y == 0) {
+                                if (x == 0) print(" ┌", .{}) else if (x == board_size - 1) print("─┐", .{}) else print("─┬", .{});
+                            } else if (y == board_size - 1)
+                                if (x == 0) print(" └", .{}) else if (x == board_size - 1) print("─┘", .{}) else print("─┴", .{})
+                            else if (x == 0) print(" ├", .{}) else if (x == board_size - 1) print("─┤", .{}) else print("─┼", .{});
+                        },
                     }
                 }
-                print(" | {:2}", .{y});
+                print(" {:2}", .{19 - y});
             }
 
-            print("\n---+", .{});
-            for (0..board_size) |_| {
-                print("--", .{});
-            }
-            print("-+---", .{});
-
-            print("\n   |", .{});
+            print("\n  ", .{});
             for (0..board_size) |i| {
-                print("{:2}", .{i % 10});
+                print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
             }
-            print(" |", .{});
         }
     };
 }

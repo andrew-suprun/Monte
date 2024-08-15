@@ -46,7 +46,7 @@ pub fn SearchTree(Game: type, Move: type, comptime explore_factor: f32) type {
             defer node.updateStats();
 
             if (node.children.len > 0) {
-                const child = if (node.children[0].move.player == .first)
+                const child = if (node.move.player == .second)
                     node.selectChild(.first)
                 else
                     node.selectChild(.second);
