@@ -19,13 +19,13 @@ pub fn Move(Player: type) type {
         }
 
         pub fn print(self: @This()) void {
-            std.debug.print("[{c}{d}-{c}{d}, player: {s}, winner: {s}, score: {d}]", .{
+            std.debug.print("[{c}{d} {c}{d}, player: {s}, winner: {s}, score: {d}]", .{
                 @as(u8, @intCast(self.places[0].x)) + 'a',
                 19 - self.places[0].y,
                 @as(u8, @intCast(self.places[1].x)) + 'a',
                 19 - self.places[1].y,
                 self.player.str(),
-                if (self.winner) |w| w.str() else "?",
+                if (self.winner) |w| w.str() else "-",
                 self.score,
             });
         }
@@ -73,15 +73,15 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
         pub fn possibleMoves(self: *Self, buf: []C6Move) []C6Move {
             const stone = self.nextStone();
-            var place_list: [board_size * board_size]Place = undefined;
+            var place_buf: [board_size * board_size]Place = undefined;
             if (stone == .black) {
                 const scores = self.calcScores(.black);
-                const places = self.possiblePlaces(.black, scores, &place_list);
-                return self.selectMoves(.black, scores, places, buf);
+                const place_list = self.possiblePlaces(.black, scores, &place_buf);
+                return self.selectMoves(.black, scores, place_list, buf);
             } else {
                 const scores = self.calcScores(.white);
-                const places = self.possiblePlaces(.white, scores, &place_list);
-                return self.selectMoves(.white, scores, places, buf);
+                const place_list = self.possiblePlaces(.white, scores, &place_buf);
+                return self.selectMoves(.white, scores, place_list, buf);
             }
         }
 
@@ -95,12 +95,12 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return heap.sorted(place_list);
         }
 
-        fn selectMoves(self: *Self, comptime stone: Stone, scores: Scores, places: []Place, buf: []C6Move) []C6Move {
+        fn selectMoves(self: *Self, comptime stone: Stone, scores: Scores, place_list: []Place, buf: []C6Move) []C6Move {
             var heap = if (stone == .black) HeapBlack.init({}) else HeapWhite.init({});
 
-            if (scores[places[0].y][places[0].x] == 0) {
+            if (scores[place_list[0].y][place_list[0].x] == 0) {
                 buf[0] = C6Move{
-                    .places = [2]Place{ places[0], places[1] },
+                    .places = places(place_list[0], place_list[1]),
                     .player = stone.player(),
                     .score = 0,
                     .winner = .none,
@@ -108,16 +108,16 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                 return buf[0..1];
             }
 
-            for (places[0 .. places.len - 1], 0..) |p1, i| {
+            for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
                 const score1 = scores[p1.y][p1.x];
                 if (score1 > 1024)
                     return winningMove(p1, p1, .first, score1, buf)
                 else if (score1 < -1024)
                     return winningMove(p1, p1, .second, score1, buf);
 
-                for (i + 1..places.len) |j| {
+                for (i + 1..place_list.len) |j| {
                     var score2: i32 = undefined;
-                    const p2 = places[j];
+                    const p2 = place_list[j];
                     if (p1.x == p2.x or p1.y == p2.y or p1.x + p1.y == p2.x + p2.y or p1.x + p2.y == p2.x + p1.y) {
                         self.board[p1.y][p1.x] = stone;
                         score2 = self.ratePlace(p2, stone);
@@ -132,13 +132,20 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                         return winningMove(p1, p2, .second, score2, buf);
 
                     heap.add(C6Move{
-                        .places = [2]Place{ p1, p2 },
+                        .places = places(p1, p2),
                         .player = stone.player(),
                         .score = score1 + score2,
                     });
                 }
             }
             return heap.sorted(buf);
+        }
+
+        fn places(p1: Place, p2: Place) [2]Place {
+            return if (p1.x < p2.x or p1.x == p2.x and p1.y > p2.y)
+                [2]Place{ p1, p2 }
+            else
+                [2]Place{ p2, p1 };
         }
 
         fn ratePlace(self: Self, place: Place, stone: Stone) i32 {
@@ -222,7 +229,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
         fn winningMove(p1: Place, p2: Place, player: Player, score: i32, buf: []C6Move) []C6Move {
             buf[0] = C6Move{
-                .places = [2]Place{ p1, p2 },
+                .places = places(p1, p2),
                 .player = player,
                 .winner = player,
                 .score = score,
