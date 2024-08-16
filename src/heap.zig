@@ -1,7 +1,7 @@
 const std = @import("std");
 const print = std.debug.print;
 
-pub fn Heap(comptime T: type, comptime Context: type, comptime less: fn (context: Context, a: T, b: T) bool, capacity: usize) type {
+pub fn Heap(T: type, Context: type, comptime less: fn (context: Context, a: T, b: T) bool, capacity: usize) type {
     return struct {
         const Self = @This();
 

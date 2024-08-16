@@ -148,7 +148,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
                 [2]Place{ p2, p1 };
         }
 
-        fn ratePlace(self: Self, place: Place, stone: Stone) i32 {
+        fn ratePlace(self: Self, place: Place, comptime stone: Stone) i32 {
             const x = place.x;
             const y = place.y;
             var score: i32 = 0;
@@ -376,7 +376,7 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
         const five_stones = 120;
         const six_stones = 2048;
 
-        fn calcScore(stone: Stone, stones: i32) i32 {
+        fn calcScore(comptime stone: Stone, stones: i32) i32 {
             return if (stone == .black)
                 switch (stones) {
                     0x00 => one_stone,
