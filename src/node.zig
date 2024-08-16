@@ -71,7 +71,12 @@ pub fn Node(Game: type, Move: type, Player: type, comptime explore_factor: f32) 
                 if (child.n_extentions == 0) return child;
                 if (child.max_result != child.min_result) {
                     var score = @as(f32, @floatFromInt(child.score));
-                    if (player == .first and score < 0 or player == .second and score > 0) score = 0;
+                    if (player == .first) {
+                        if (child.min_result == .none) score = @max(score, 0);
+                    } else {
+                        if (child.max_result == .none) score = @min(score, 0);
+                    }
+
                     const child_score = if (player == .first)
                         explore_factor * @sqrt(big_n / @as(f32, @floatFromInt(child.n_extentions))) + score
                     else
