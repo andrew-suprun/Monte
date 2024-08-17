@@ -96,7 +96,7 @@ const Monte = struct {
                     self.should_quit = true;
                 if (key.matches(vaxis.Key.enter, .{})) {
                     if (self.n_highlighted_places == 4) {
-                        var move = self.engine.game.initMove(.first, self.highlighted_places[2], self.highlighted_places[3]);
+                        var move = self.engine.game.initMove(.second, self.highlighted_places[2], self.highlighted_places[3]);
                         self.engine.makeMove(move);
                         for (0..100_000) |_| {
                             if (self.engine.root.min_result == self.engine.root.max_result) {
@@ -111,6 +111,13 @@ const Monte = struct {
                         self.highlighted_places[1] = move.places[1];
                         self.board[move.places[0].y][move.places[0].x] = .first;
                         self.board[move.places[1].y][move.places[1].x] = .first;
+                    }
+                }
+                if (key.matches(vaxis.Key.escape, .{})) {
+                    if (self.n_highlighted_places > 2) {
+                        self.n_highlighted_places -= 1;
+                        const place = self.highlighted_places[self.n_highlighted_places];
+                        self.board[place.y][place.x] = .none;
                     }
                 }
             },
