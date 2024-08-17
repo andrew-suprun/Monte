@@ -1,13 +1,18 @@
 const std = @import("std");
 const vaxis = @import("vaxis");
 
-const board_size = 19;
-const max_moves = 300;
+const tree = @import("tree.zig");
+const c6 = @import("connect6.zig");
 
-const Player = @import("tree.zig").Player;
-const Move = @import("connect6.zig").Move(Player);
-const C6 = @import("connect6.zig").C6(Player, board_size, max_moves);
-const SearchTree = @import("tree.zig").SearchTree(C6, Move);
+const board_size = 19;
+const max_moves = 100;
+
+const Player = tree.Player;
+const SearchTree = tree.SearchTree(C6, Move);
+
+const Move = c6.Move(Player);
+const Place = c6.Place;
+const C6 = c6.C6(Player, board_size, max_moves);
 
 pub const panic = vaxis.panic_handler;
 
@@ -26,29 +31,30 @@ const Monte = struct {
     mouse: ?vaxis.Mouse = null,
     winsize: vaxis.Winsize = undefined,
     engine: SearchTree,
-    board: [board_size][board_size]Player,
-    last_move: Move,
+    board: [board_size][board_size]Player = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size,
+    highlighted_places: [4]Place = undefined,
+    n_highlighted_places: usize = 2,
 
     pub fn init(allocator: std.mem.Allocator) !Monte {
-        var engine = SearchTree.init(allocator);
-        const move = Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
-        engine.makeMove(move);
-        var board = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size;
-        board[9][9] = .first;
-
-        return .{
+        var result = Monte{
             .allocator = allocator,
             .tty = try vaxis.Tty.init(),
             .vx = try vaxis.init(allocator, .{}),
-            .engine = engine,
-            .board = board,
-            .last_move = move,
+            .engine = SearchTree.init(allocator),
         };
+        const place = Place.init(9, 9);
+        result.board[9][9] = .first;
+        const move = result.engine.game.initMove(.first, place, place);
+        result.engine.makeMove(move);
+        result.highlighted_places[0] = place;
+        result.highlighted_places[1] = place;
+        return result;
     }
 
     pub fn deinit(self: *Monte) void {
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
+        self.engine.deinit();
     }
 
     pub fn run(self: *Monte) !void {
@@ -88,6 +94,25 @@ const Monte = struct {
             .key_press => |key| {
                 if (key.matches('c', .{ .ctrl = true }))
                     self.should_quit = true;
+                if (key.matches(vaxis.Key.enter, .{})) {
+                    if (self.n_highlighted_places == 4) {
+                        var move = self.engine.game.initMove(.first, self.highlighted_places[2], self.highlighted_places[3]);
+                        self.engine.makeMove(move);
+                        for (0..100_000) |_| {
+                            if (self.engine.root.min_result == self.engine.root.max_result) {
+                                break;
+                            }
+                            self.engine.expand();
+                        }
+                        move = self.engine.bestMove();
+                        self.engine.makeMove(move);
+                        self.n_highlighted_places = 2;
+                        self.highlighted_places[0] = move.places[0];
+                        self.highlighted_places[1] = move.places[1];
+                        self.board[move.places[0].y][move.places[0].x] = .first;
+                        self.board[move.places[1].y][move.places[1].x] = .first;
+                    }
+                }
             },
             .mouse => |mouse| self.mouse = mouse,
             .winsize => |ws| {
@@ -101,6 +126,7 @@ const Monte = struct {
     pub fn draw(self: *Monte, allocator: std.mem.Allocator) void {
         const win = self.vx.window();
         win.clear();
+        win.fill(vaxis.Cell{ .style = style_board });
 
         if (self.winsize.cols < 44 or self.winsize.rows < 21) {
             _ = try win.printSegment(.{ .text = "Too Small!!!", .style = .{
@@ -124,12 +150,12 @@ const Monte = struct {
                 if (x < 0 or x >= board_size) break :mouse_blk;
                 const y = mouse.row - start_y - 1;
                 if (y < 0 or y >= board_size) break :mouse_blk;
+                if (self.board[y][x] != .none) break :mouse_blk;
+                if (self.n_highlighted_places == 4) break :mouse_blk;
+
                 self.board[y][x] = .second;
-                self.last_move = Move{
-                    .places = .{ .{ .x = @intCast(x), .y = @intCast(y) }, .{ .x = @intCast(x), .y = @intCast(y) } },
-                    .score = 0,
-                    .player = .second,
-                };
+                self.highlighted_places[self.n_highlighted_places] = Place.init(x, y);
+                self.n_highlighted_places += 1;
             }
         }
 
@@ -141,11 +167,9 @@ const Monte = struct {
             printSegment(win, row_str, style_board, start_x + 39, start_y + 1 + y);
         }
 
-        const place1 = self.last_move.places[0];
-        const place2 = self.last_move.places[1];
         for (0..board_size) |y| {
             for (0..board_size) |x| {
-                const highlight = place1.x == x and place1.y == y or place2.x == x and place2.y == y;
+                const highlight = self.highlighted(x, y);
                 if (x > 0) printSegment(win, "─", style_board, start_x + 1 + x * 2, start_y + 1 + y);
 
                 switch (self.board[y][x]) {
@@ -188,6 +212,14 @@ const Monte = struct {
             }
         }
     }
+
+    fn highlighted(self: Monte, x: usize, y: usize) bool {
+        const place = Place.init(x, y);
+        for (self.highlighted_places[0..self.n_highlighted_places]) |hl_place| {
+            if (place.eql(hl_place)) return true;
+        }
+        return false;
+    }
 };
 
 const bg: vaxis.Color = .{ .rgb = [_]u8{ 0, 0, 0 } };
@@ -200,11 +232,13 @@ const style_board = vaxis.Style{
 const style_black_highlight = vaxis.Style{
     .fg = .{ .rgb = [_]u8{ 255, 127, 127 } },
     .bg = bg,
+    .ul = .{ .rgb = [_]u8{ 255, 127, 127 } },
+    .ul_style = .double,
     .bold = true,
 };
 
 const style_black = vaxis.Style{
-    .fg = .{ .rgb = [_]u8{ 255, 63, 63 } },
+    .fg = .{ .rgb = [_]u8{ 255, 127, 127 } },
     .bg = bg,
     .bold = true,
 };
@@ -212,11 +246,13 @@ const style_black = vaxis.Style{
 const style_white_highlight = vaxis.Style{
     .fg = .{ .rgb = [_]u8{ 127, 127, 255 } },
     .bg = bg,
+    .ul = .{ .rgb = [_]u8{ 127, 127, 255 } },
+    .ul_style = .double,
     .bold = true,
 };
 
 const style_white = vaxis.Style{
-    .fg = .{ .rgb = [_]u8{ 63, 63, 255 } },
+    .fg = .{ .rgb = [_]u8{ 127, 127, 255 } },
     .bg = bg,
     .bold = true,
 };

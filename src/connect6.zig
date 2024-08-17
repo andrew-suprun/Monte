@@ -32,12 +32,15 @@ pub fn Move(Player: type) type {
     };
 }
 
-const Place = struct {
+pub const Place = struct {
     x: u8,
     y: u8,
 
-    inline fn init(x: usize, y: usize) @This() {
+    pub inline fn init(x: usize, y: usize) @This() {
         return @This(){ .x = @intCast(x), .y = @intCast(y) };
+    }
+    pub inline fn eql(self: @This(), other: @This()) bool {
+        return self.x == other.x and self.y == other.y;
     }
 };
 
@@ -52,6 +55,21 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
         pub fn maxMoves() comptime_int {
             return max_moves;
+        }
+
+        pub fn initMove(self: *Self, player: Player, p1: Place, p2: Place) C6Move {
+            const stone = Stone.fromPlayer(player);
+            const score1 = if (stone == .black) self.ratePlace(p1, .black) else self.ratePlace(p1, .white);
+            const score2 = if (p1.eql(p2)) blk: {
+                self.board[p1.y][p1.x] = stone;
+                defer self.board[p1.y][p1.x] = .none;
+                break :blk if (stone == .black) self.ratePlace(p2, .black) else self.ratePlace(p2, .white);
+            } else 0;
+            return C6Move{
+                .places = places(p1, p2),
+                .player = stone.player(),
+                .score = score1 + score2,
+            };
         }
 
         pub fn makeMove(self: *Self, move: C6Move) void {
@@ -502,9 +520,10 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             for (0..board_size) |y| {
                 print("\n{:2}", .{19 - y});
                 for (0..board_size) |x| {
+                    const place = Place.init(x, y);
                     switch (self.board[y][x]) {
-                        .black => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─#", .{}) else print("─X", .{}),
-                        .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
+                        .black => if (place.eql(place1) or place.eql(place2)) print("─#", .{}) else print("─X", .{}),
+                        .white => if (place.eql(place1) or place.eql(place2)) print("─@", .{}) else print("─O", .{}),
                         else => {
                             if (y == 0) {
                                 if (x == 0) print(" ┌", .{}) else if (x == board_size - 1) print("─┐", .{}) else print("─┬", .{});

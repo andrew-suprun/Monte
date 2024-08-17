@@ -38,14 +38,4 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
-
-    const exe_check = b.addExecutable(.{
-        .name = "C6",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const check = b.step("check", "Check if Connect6 compiles");
-    check.dependOn(&exe_check.step);
 }
