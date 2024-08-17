@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub fn Node(Game: type, Move: type, Player: type, comptime explore_factor: f32) type {
+pub fn Node(Game: type, Move: type, Player: type) type {
     return struct {
         move: Move = undefined,
         children: []Self = &[_]Self{},
@@ -64,13 +64,12 @@ pub fn Node(Game: type, Move: type, Player: type, comptime explore_factor: f32) 
         }
 
         pub fn selectChild(self: Self, comptime player: Player) *Self {
-            const big_n = @log(@as(f32, @floatFromInt(self.n_extentions)));
             var selected_child: ?*Self = null;
-            var selected_score: f32 = -std.math.inf(f32);
+            var selected_score: i32 = std.math.minInt(i32);
             for (self.children) |*child| {
                 if (child.n_extentions == 0) return child;
                 if (child.max_result != child.min_result) {
-                    var score = @as(f32, @floatFromInt(child.score));
+                    var score = child.score;
                     if (player == .first) {
                         if (child.min_result == .none) score = @max(score, 0);
                     } else {
@@ -78,9 +77,9 @@ pub fn Node(Game: type, Move: type, Player: type, comptime explore_factor: f32) 
                     }
 
                     const child_score = if (player == .first)
-                        explore_factor * @sqrt(big_n / @as(f32, @floatFromInt(child.n_extentions))) + score
+                        score - child.n_extentions
                     else
-                        explore_factor * @sqrt(big_n / @as(f32, @floatFromInt(child.n_extentions))) - score;
+                        -score - child.n_extentions;
                     if (selected_child == null or selected_score < child_score) {
                         selected_child = child;
                         selected_score = child_score;

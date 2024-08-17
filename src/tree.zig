@@ -16,7 +16,7 @@ pub const Player = enum(u8) {
     }
 };
 
-pub fn SearchTree(Game: type, Move: type, comptime explore_factor: f32) type {
+pub fn SearchTree(Game: type, Move: type) type {
     return struct {
         root: Node,
         game: Game,
@@ -24,7 +24,7 @@ pub fn SearchTree(Game: type, Move: type, comptime explore_factor: f32) type {
         allocator: Allocator,
 
         const Self = @This();
-        const Node = @import("node.zig").Node(Game, Move, Player, explore_factor);
+        const Node = @import("node.zig").Node(Game, Move, Player);
 
         pub fn init(allocator: Allocator) Self {
             return Self{

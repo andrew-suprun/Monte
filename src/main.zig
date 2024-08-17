@@ -14,10 +14,10 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var first = tree.SearchTree(Game1, Move, 16).init(allocator);
+    var first = tree.SearchTree(Game1, Move).init(allocator);
     defer first.deinit();
 
-    var second = tree.SearchTree(Game2, Move, 16).init(allocator);
+    var second = tree.SearchTree(Game2, Move).init(allocator);
     defer second.deinit();
 
     var move = Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
