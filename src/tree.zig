@@ -97,7 +97,7 @@ pub fn SearchTree(Game: type, Move: type) type {
             return buf;
         }
 
-        pub fn commitMove(self: *Self, move: Move) void {
+        pub fn makeMove(self: *Self, move: Move) void {
             self.acc += move.score;
             self.game.makeMove(move);
             var new_root: ?Node = null;

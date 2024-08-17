@@ -21,12 +21,12 @@ pub fn main() !void {
     defer second.deinit();
 
     var move = Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
-    first.commitMove(move);
-    second.commitMove(move);
+    first.makeMove(move);
+    second.makeMove(move);
 
     move = Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
-    first.commitMove(move);
-    second.commitMove(move);
+    first.makeMove(move);
+    second.makeMove(move);
 
     while (true) {
         for (0..100_000) |i| {
@@ -38,8 +38,8 @@ pub fn main() !void {
             first.expand();
         }
         move = first.bestMove();
-        first.commitMove(move);
-        second.commitMove(move);
+        first.makeMove(move);
+        second.makeMove(move);
         print("\n----------\nmove: ", .{});
         move.print();
         first.game.printBoard(move);
@@ -55,8 +55,8 @@ pub fn main() !void {
             second.expand();
         }
         move = second.bestMove();
-        first.commitMove(move);
-        second.commitMove(move);
+        first.makeMove(move);
+        second.makeMove(move);
         print("\n----------\nmove: ", .{});
         move.print();
         second.game.printBoard(move);
@@ -78,16 +78,16 @@ test "expand" {
     defer stree.deinit();
 
     var move = Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
-    stree.commitMove(move);
+    stree.makeMove(move);
 
     move = Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
-    stree.commitMove(move);
+    stree.makeMove(move);
 
     move = Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
-    stree.commitMove(move);
+    stree.makeMove(move);
 
     move = Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
-    stree.commitMove(move);
+    stree.makeMove(move);
 
     var timer = try std.time.Timer.start();
     for (0..1000) |_| {
@@ -102,7 +102,7 @@ test "expand" {
     for (moves) |m| {
         print("\nmove ", .{});
         m.print();
-        stree.commitMove(m);
+        stree.makeMove(m);
         stree.game.printBoard(m);
     }
 
