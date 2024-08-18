@@ -2,14 +2,14 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
-pub fn Node(Game: type, Move: type, Player: type) type {
+pub fn Node(Game: type) type {
     return struct {
-        move: Move = undefined,
+        move: Game.Move = undefined,
         children: []Self = &[_]Self{},
         score: i32 = 0,
         n_extentions: i32 = 0,
-        max_result: Player = .first,
-        min_result: Player = .second,
+        max_result: Game.Player = .first,
+        min_result: Game.Player = .second,
 
         const Self = @This();
 
@@ -20,7 +20,7 @@ pub fn Node(Game: type, Move: type, Player: type) type {
             allocator.free(self.children);
         }
 
-        pub fn bestMove(self: Self) Move {
+        pub fn bestMove(self: Self) Game.Move {
             var selected_child: *Self = &self.children[0];
             const player = selected_child.move.player;
             for (self.children[1..]) |*child| {
@@ -63,31 +63,22 @@ pub fn Node(Game: type, Move: type, Player: type) type {
             return selected_child.move;
         }
 
-        pub fn selectChild(self: Self, comptime player: Player) *Self {
+        pub fn selectChild(self: Self, comptime player: Game.Player) *Self {
             var selected_child: ?*Self = null;
             var selected_score: i32 = std.math.minInt(i32);
             for (self.children) |*child| {
                 if (child.n_extentions == 0) return child;
                 if (child.max_result != child.min_result) {
-                    var score = child.score;
-                    if (player == .first) {
-                        if (child.min_result == .none) score = @max(score, 0);
-                    } else {
-                        if (child.max_result == .none) score = @min(score, 0);
-                    }
-
                     const child_score = if (player == .first)
-                        score - child.n_extentions
+                        child.score - child.n_extentions
                     else
-                        -score - child.n_extentions;
+                        -child.score - child.n_extentions;
                     if (selected_child == null or selected_score < child_score) {
                         selected_child = child;
                         selected_score = child_score;
                     }
                 } else {
-                    if (child.max_result == player) return child;
-                    if (child.max_result != .none) continue;
-                    unreachable;
+                    if (player == child.max_result) return child;
                 }
             }
 
@@ -103,9 +94,10 @@ pub fn Node(Game: type, Move: type, Player: type) type {
 
                 for (self.children) |child| {
                     self.score = @max(self.score, child.score);
-                    self.max_result = @enumFromInt(@max(@intFromEnum(self.max_result), @intFromEnum(child.max_result)));
-                    self.min_result = @enumFromInt(@max(@intFromEnum(self.min_result), @intFromEnum(child.min_result)));
+                    self.max_result = self.max_result.max(child.max_result);
+                    self.min_result = self.min_result.max(child.min_result);
                 }
+                if (self.min_result == .none) self.score = @max(self.score, 0);
             } else {
                 self.score = std.math.maxInt(i32);
                 self.max_result = .first;
@@ -113,9 +105,10 @@ pub fn Node(Game: type, Move: type, Player: type) type {
 
                 for (self.children) |child| {
                     self.score = @min(self.score, child.score);
-                    self.max_result = @enumFromInt(@min(@intFromEnum(self.max_result), @intFromEnum(child.max_result)));
-                    self.min_result = @enumFromInt(@min(@intFromEnum(self.min_result), @intFromEnum(child.min_result)));
+                    self.max_result = self.max_result.min(child.max_result);
+                    self.min_result = self.min_result.min(child.min_result);
                 }
+                if (self.max_result == .none) self.score = @min(self.score, 0);
             }
         }
 
@@ -123,8 +116,8 @@ pub fn Node(Game: type, Move: type, Player: type) type {
             if (self.children.len == 0) return;
 
             const player = self.children[0].move.player;
-            var max: Player = undefined;
-            var min: Player = undefined;
+            var max: Game.Player = undefined;
+            var min: Game.Player = undefined;
             var score: i32 = undefined;
 
             if (player == .first) {
@@ -139,14 +132,14 @@ pub fn Node(Game: type, Move: type, Player: type) type {
             if (player == .first) {
                 for (self.children) |child| {
                     score = @max(score, child.score);
-                    max = @enumFromInt(@max(@intFromEnum(max), @intFromEnum(child.max_result)));
-                    min = @enumFromInt(@max(@intFromEnum(min), @intFromEnum(child.min_result)));
+                    max = max.max(child.max_result);
+                    min = min.max(child.max_result);
                 }
             } else {
                 for (self.children) |child| {
                     score = @min(score, child.score);
-                    max = @enumFromInt(@min(@intFromEnum(max), @intFromEnum(child.max_result)));
-                    min = @enumFromInt(@min(@intFromEnum(min), @intFromEnum(child.min_result)));
+                    max = max.min(child.max_result);
+                    min = min.min(child.max_result);
                 }
             }
             if (self.score != score or self.max_result != max or self.min_result != min) {
@@ -187,6 +180,14 @@ pub fn Node(Game: type, Move: type, Player: type) type {
             print(" | max: {s}", .{self.max_result.str()});
             print(" | extentions: {d}", .{self.n_extentions});
             print(" | children {d}", .{self.children.len});
+        }
+
+        pub fn debugPrintChildren(self: Self) void {
+            print("\n", .{});
+            self.debugPrintLevel(0);
+            for (self.children) |child| {
+                child.debugPrintLevel(1);
+            }
         }
     };
 }

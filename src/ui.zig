@@ -2,17 +2,13 @@ const std = @import("std");
 const vaxis = @import("vaxis");
 
 const tree = @import("tree.zig");
-const c6 = @import("connect6.zig");
+const C6 = @import("Connect6.zig");
 
 const board_size = 19;
 const max_moves = 100;
 
-const Player = tree.Player;
-const SearchTree = tree.SearchTree(C6, Move);
-
-const Move = c6.Move(Player);
-const Place = c6.Place;
-const C6 = c6.C6(Player, board_size, max_moves);
+const Player = C6.Player;
+const SearchTree = tree.SearchTree(C6);
 
 pub const panic = vaxis.panic_handler;
 
@@ -31,8 +27,9 @@ const Monte = struct {
     mouse: ?vaxis.Mouse = null,
     winsize: vaxis.Winsize = undefined,
     engine: SearchTree,
+    game: C6,
     board: [board_size][board_size]Player = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size,
-    highlighted_places: [4]Place = undefined,
+    highlighted_places: [4]C6.Place = undefined,
     n_highlighted_places: usize = 2,
 
     pub fn init(allocator: std.mem.Allocator) !Monte {
@@ -41,10 +38,11 @@ const Monte = struct {
             .tty = try vaxis.Tty.init(),
             .vx = try vaxis.init(allocator, .{}),
             .engine = SearchTree.init(allocator),
+            .game = C6{},
         };
-        const place = Place.init(9, 9);
         result.board[9][9] = .first;
-        const move = result.engine.game.initMove(.first, place, place);
+        const place = C6.Place.init(9, 9);
+        const move = result.game.initMove(.{ place, place });
         result.engine.makeMove(move);
         result.highlighted_places[0] = place;
         result.highlighted_places[1] = place;
@@ -96,13 +94,15 @@ const Monte = struct {
                     self.should_quit = true;
                 if (key.matches(vaxis.Key.enter, .{})) {
                     if (self.n_highlighted_places == 4) {
-                        var move = self.engine.game.initMove(.second, self.highlighted_places[2], self.highlighted_places[3]);
+                        const p1 = self.highlighted_places[2];
+                        const p2 = self.highlighted_places[3];
+                        var move = self.game.initMove(.{ p1, p2 });
                         self.engine.makeMove(move);
-                        for (0..100_000) |_| {
+                        for (0..20_000) |_| {
                             if (self.engine.root.min_result == self.engine.root.max_result) {
                                 break;
                             }
-                            self.engine.expand();
+                            self.engine.expand(&self.game);
                         }
                         move = self.engine.bestMove();
                         self.engine.makeMove(move);
@@ -161,7 +161,7 @@ const Monte = struct {
                 if (self.n_highlighted_places == 4) break :mouse_blk;
 
                 self.board[y][x] = .second;
-                self.highlighted_places[self.n_highlighted_places] = Place.init(x, y);
+                self.highlighted_places[self.n_highlighted_places] = C6.Place.init(x, y);
                 self.n_highlighted_places += 1;
             }
         }
@@ -221,7 +221,7 @@ const Monte = struct {
     }
 
     fn highlighted(self: Monte, x: usize, y: usize) bool {
-        const place = Place.init(x, y);
+        const place = C6.Place.init(x, y);
         for (self.highlighted_places[0..self.n_highlighted_places]) |hl_place| {
             if (place.eql(hl_place)) return true;
         }
