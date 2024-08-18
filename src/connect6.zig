@@ -59,13 +59,12 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
 
         pub fn initMove(
             self: *Self,
-            player: Player,
             x1: usize,
             y1: usize,
             x2: usize,
             y2: usize,
         ) C6Move {
-            const stone = Stone.fromPlayer(player);
+            const stone = self.nextStone();
             const place1 = Place.init(x1, y1);
             const place2 = Place.init(x2, y2);
             const score1 = if (stone == .black)

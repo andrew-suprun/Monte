@@ -49,6 +49,18 @@ fn handleCommand(self: *Self, line: []u8) !void {
 fn handleMove(self: *Self, tokens: *std.mem.TokenIterator(u8, .scalar)) void {
     _ = self;
     print("\nmove: ", .{});
+    var coords: [2][2]u8 = undefined;
+    for (0..2) |i| {
+        if (tokens.next()) |token| {
+            coords[i] = parsePlace(token) catch |_| {
+                self.replyError("invalid move");
+            };
+        } else {
+            self.replyError("invalid move");
+            return;
+        }
+    }
+    const move = self.engine.game.initMove(coords[0][0], coords[0][1], coords[1][0], coords[1][1])
     while (tokens.next()) |token| {
         print("\n   token {s}", .{token});
     }
