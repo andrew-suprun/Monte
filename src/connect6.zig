@@ -57,16 +57,32 @@ pub fn C6(Player: type, comptime board_size: comptime_int, comptime max_moves: u
             return max_moves;
         }
 
-        pub fn initMove(self: *Self, player: Player, p1: Place, p2: Place) C6Move {
+        pub fn initMove(
+            self: *Self,
+            player: Player,
+            x1: usize,
+            y1: usize,
+            x2: usize,
+            y2: usize,
+        ) C6Move {
             const stone = Stone.fromPlayer(player);
-            const score1 = if (stone == .black) self.ratePlace(p1, .black) else self.ratePlace(p1, .white);
-            const score2 = if (p1.eql(p2)) blk: {
-                self.board[p1.y][p1.x] = stone;
-                defer self.board[p1.y][p1.x] = .none;
-                break :blk if (stone == .black) self.ratePlace(p2, .black) else self.ratePlace(p2, .white);
+            const place1 = Place.init(x1, y1);
+            const place2 = Place.init(x2, y2);
+            const score1 = if (stone == .black)
+                self.ratePlace(place1, .black)
+            else
+                self.ratePlace(place1, .white);
+            const score2 = if (place1.eql(place2)) blk: {
+                self.board[y1][x1] = stone;
+                defer self.board[y1][x1] = .none;
+
+                break :blk if (stone == .black)
+                    self.ratePlace(place2, .black)
+                else
+                    self.ratePlace(place2, .white);
             } else 0;
             return C6Move{
-                .places = places(p1, p2),
+                .places = places(place1, place2),
                 .player = stone.player(),
                 .score = score1 + score2,
             };
