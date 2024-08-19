@@ -1,14 +1,10 @@
 const std = @import("std");
 const vaxis = @import("vaxis");
 
-const tree = @import("tree.zig");
 const C6 = @import("Connect6.zig");
-
-const board_size = 19;
-const max_moves = 100;
+const SearchTree = @import("tree.zig").SearchTree(C6);
 
 const Player = C6.Player;
-const SearchTree = tree.SearchTree(C6);
 
 pub const panic = vaxis.panic_handler;
 
@@ -28,7 +24,7 @@ const Monte = struct {
     winsize: vaxis.Winsize = undefined,
     engine: SearchTree,
     game: C6,
-    board: [board_size][board_size]Player = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size,
+    board: [C6.board_size][C6.board_size]Player = [1][C6.board_size]Player{[1]Player{.none} ** C6.board_size} ** C6.board_size,
     highlighted_places: [4]C6.Place = undefined,
     n_highlighted_places: usize = 2,
 
@@ -157,9 +153,9 @@ const Monte = struct {
                 const dx = mouse.col - start_x - 2;
                 if (dx % 2 == 1) break :mouse_blk;
                 const x = dx / 2;
-                if (x < 0 or x >= board_size) break :mouse_blk;
+                if (x < 0 or x >= C6.board_size) break :mouse_blk;
                 const y = mouse.row - start_y - 1;
-                if (y < 0 or y >= board_size) break :mouse_blk;
+                if (y < 0 or y >= C6.board_size) break :mouse_blk;
                 if (self.board[y][x] != .none) break :mouse_blk;
                 if (self.n_highlighted_places == 4) break :mouse_blk;
 
@@ -171,14 +167,14 @@ const Monte = struct {
 
         printSegment(win, "  a b c d e f g h i j k l m n o p q r s  ", style_board, start_x, start_y);
         printSegment(win, "  a b c d e f g h i j k l m n o p q r s  ", style_board, start_x, start_y + 20);
-        for (0..board_size) |y| {
-            const row_str = std.fmt.allocPrint(allocator, "{d:2}", .{board_size - y}) catch unreachable;
+        for (0..C6.board_size) |y| {
+            const row_str = std.fmt.allocPrint(allocator, "{d:2}", .{C6.board_size - y}) catch unreachable;
             printSegment(win, row_str, style_board, start_x, start_y + 1 + y);
             printSegment(win, row_str, style_board, start_x + 39, start_y + 1 + y);
         }
 
-        for (0..board_size) |y| {
-            for (0..board_size) |x| {
+        for (0..C6.board_size) |y| {
+            for (0..C6.board_size) |x| {
                 const highlight = self.highlighted(x, y);
                 if (x > 0) printSegment(win, "─", style_board, start_x + 1 + x * 2, start_y + 1 + y);
 
@@ -198,21 +194,21 @@ const Monte = struct {
                         if (y == 0) {
                             if (x == 0)
                                 printSegment(win, "┌", style_board, start_x + 2 + x * 2, start_y + 1 + y)
-                            else if (x == board_size - 1)
+                            else if (x == C6.board_size - 1)
                                 printSegment(win, "─┐", style_board, start_x + 1 + x * 2, start_y + 1 + y)
                             else
                                 printSegment(win, "─┬", style_board, start_x + 1 + x * 2, start_y + 1 + y);
-                        } else if (y == board_size - 1) {
+                        } else if (y == C6.board_size - 1) {
                             if (x == 0)
                                 printSegment(win, "└", style_board, start_x + 2 + x * 2, start_y + 1 + y)
-                            else if (x == board_size - 1)
+                            else if (x == C6.board_size - 1)
                                 printSegment(win, "─┘", style_board, start_x + 1 + x * 2, start_y + 1 + y)
                             else
                                 printSegment(win, "─┴", style_board, start_x + 1 + x * 2, start_y + 1 + y);
                         } else {
                             if (x == 0)
                                 printSegment(win, "├", style_board, start_x + 2 + x * 2, start_y + 1 + y)
-                            else if (x == board_size - 1)
+                            else if (x == C6.board_size - 1)
                                 printSegment(win, "─┤", style_board, start_x + 1 + x * 2, start_y + 1 + y)
                             else
                                 printSegment(win, "─┼", style_board, start_x + 1 + x * 2, start_y + 1 + y);

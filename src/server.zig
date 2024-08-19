@@ -1,20 +1,16 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const Engine = @import("Engine.zig");
+const C6 = @import("Connect6.zig");
+const SearchTree = @import("tree.zig").SearchTree(C6);
+const Engine = @import("engine.zig").Engine(SearchTree, C6);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const in = std.io.getStdIn().reader();
-    const out = std.io.getStdOut().writer();
 
-    var engine = Engine.init(allocator, in, out);
+    var engine = Engine.init(allocator);
     defer engine.deinit();
 
     try engine.run();
-}
-
-test {
-    std.testing.refAllDeclsRecursive(@This());
 }
