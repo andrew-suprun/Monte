@@ -2,7 +2,6 @@ board: [board_size][board_size]Player = [1][board_size]Player{[1]Player{.none} *
 n_moves: usize = 0,
 
 const std = @import("std");
-const Prng = std.rand.Random.DefaultPrng;
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
@@ -91,7 +90,7 @@ pub fn initMove(
         self.ratePlace(places[0], .first)
     else
         self.ratePlace(places[0], .second);
-    const score2 = if (places[0].eql(places[1])) blk: {
+    const score2 = if (!places[0].eql(places[1])) blk: {
         self.board[places[1].y][places[0].x] = player;
         defer self.board[places[1].y][places[0].x] = .none;
 
@@ -109,10 +108,13 @@ pub fn initMove(
 
 pub fn makeMove(self: *Self, move: C6Move) void {
     const player = move.player;
+
     const p1 = move.places[0];
-    const p2 = move.places[1];
     self.board[p1.y][p1.x] = player;
+
+    const p2 = move.places[1];
     self.board[p2.y][p2.x] = player;
+
     self.n_moves += 1;
 }
 
@@ -558,6 +560,8 @@ test "C6" {
     }
     game.printBoard(move);
 }
+
+const Prng = std.rand.Random.DefaultPrng;
 
 test "scoreBoard" {
     var rng = Prng.init(1);

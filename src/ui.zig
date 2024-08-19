@@ -44,6 +44,7 @@ const Monte = struct {
         const place = C6.Place.init(9, 9);
         const move = result.game.initMove(.{ place, place });
         result.engine.makeMove(move);
+        result.game.makeMove(move);
         result.highlighted_places[0] = place;
         result.highlighted_places[1] = place;
         return result;
@@ -98,7 +99,8 @@ const Monte = struct {
                         const p2 = self.highlighted_places[3];
                         var move = self.game.initMove(.{ p1, p2 });
                         self.engine.makeMove(move);
-                        for (0..20_000) |_| {
+                        self.game.makeMove(move);
+                        for (0..100_000) |_| {
                             if (self.engine.root.min_result == self.engine.root.max_result) {
                                 break;
                             }
@@ -106,6 +108,7 @@ const Monte = struct {
                         }
                         move = self.engine.bestMove();
                         self.engine.makeMove(move);
+                        self.game.makeMove(move);
                         self.n_highlighted_places = 2;
                         self.highlighted_places[0] = move.places[0];
                         self.highlighted_places[1] = move.places[1];

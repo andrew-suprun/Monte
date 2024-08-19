@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
+const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 pub fn SearchTree(Game: type) type {
     return struct {
@@ -24,6 +25,7 @@ pub fn SearchTree(Game: type) type {
 
         pub fn expand(self: *Self, game: *Game) void {
             self.expandRecursive(game, &self.root, self.acc);
+            if (debug) self.root.debugSelfCheckRecursive(game.*);
         }
 
         fn expandRecursive(self: *Self, game: *Game, node: *Node, acc: i32) void {

@@ -133,13 +133,13 @@ pub fn Node(Game: type) type {
                 for (self.children) |child| {
                     score = @max(score, child.score);
                     max = max.max(child.max_result);
-                    min = min.max(child.max_result);
+                    min = min.max(child.min_result);
                 }
             } else {
                 for (self.children) |child| {
                     score = @min(score, child.score);
                     max = max.min(child.max_result);
-                    min = min.min(child.max_result);
+                    min = min.min(child.min_result);
                 }
             }
             if (self.score != score or self.max_result != max or self.min_result != min) {

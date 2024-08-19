@@ -2,7 +2,6 @@ const std = @import("std");
 const math = std.math;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
-const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 const C6 = @import("Connect6.zig");
 const Tree = @import("tree.zig").SearchTree(C6);
@@ -21,14 +20,14 @@ pub fn main() !void {
     tree.makeMove(move);
     game.makeMove(move);
 
-    move = C6.Move{ .places = .{ .{ .x = mid - 1, .y = mid }, .{ .x = mid - 1, .y = mid - 1 } }, .score = 0, .player = .second };
-    tree.makeMove(move);
-    game.makeMove(move);
+    // move = C6.Move{ .places = .{ .{ .x = mid - 1, .y = mid }, .{ .x = mid - 1, .y = mid - 1 } }, .score = 0, .player = .second };
+    // tree.makeMove(move);
+    // game.makeMove(move);
 
     while (true) {
         for (0..100_000) |i| {
             if (tree.root.min_result == tree.root.max_result) {
-                print("\n expands.1 n: {d} move: ", .{i});
+                print("\nexpand n: {d} winner: {s} move: ", .{ i, tree.root.max_result.str() });
                 move.print();
                 tree.debugPrintChildren();
                 print("\n", .{});
@@ -51,46 +50,53 @@ test {
     std.testing.refAllDeclsRecursive(@This());
 }
 
+test "makeMove" {
+    const Prng = std.rand.Random.DefaultPrng;
+    var rng = Prng.init(1);
+
+    var tree = Tree.init(std.testing.allocator);
+    defer tree.deinit();
+
+    var game = C6{};
+
+    for (0..30) |_| {
+        var places: [2]C6.Place = undefined;
+        var selected: usize = 0;
+        while (selected < 2) {
+            const x = rng.next() % C6.board_size;
+            const y = rng.next() % C6.board_size;
+            if (game.board[y][x] != .none) continue;
+            places[selected] = C6.Place.init(x, y);
+            selected += 1;
+        }
+
+        const move = game.initMove(places);
+        tree.makeMove(move);
+        game.makeMove(move);
+
+        tree.debugSelfCheck(game);
+    }
+    game.printBoard(game.initMove(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
+}
+
 test "expand" {
     var tree = Tree.init(std.testing.allocator);
     defer tree.deinit();
 
     var game = C6{};
 
-    var move = C6.Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    const move = game.initMove(.{ C6.Place.init(5, 5), C6.Place.init(5, 5) });
+    print("\n move: ", .{});
+    move.print();
     tree.makeMove(move);
     game.makeMove(move);
+    game.printBoard(move);
 
-    move = C6.Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
-    tree.makeMove(move);
-    game.makeMove(move);
-
-    move = C6.Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
-    tree.makeMove(move);
-    game.makeMove(move);
-
-    move = C6.Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
-    tree.makeMove(move);
-    game.makeMove(move);
-
-    var timer = try std.time.Timer.start();
-    for (0..1000) |_| {
-        if (tree.root.max_result == tree.root.min_result) break;
+    for (0..30) |i| {
         tree.expand(&game);
+        print("\n----\n expand {}", .{i});
+        tree.debugPrint();
+        tree.debugSelfCheck(game);
     }
-    print("\ntime {}ms", .{timer.read() / 1_000_000});
-    tree.debugSelfCheck(game);
-
-    print("\n\nbest line\n", .{});
-    var buf: [20]C6.Move = undefined;
-    const moves = tree.bestLine(game, &buf);
-    for (moves) |m| {
-        print("\nmove ", .{});
-        m.print();
-        tree.makeMove(m);
-        game.makeMove(m);
-        game.printBoard(m);
-    }
-
-    print("\n\n", .{});
+    game.printBoard(game.initMove(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
 }
