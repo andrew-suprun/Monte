@@ -5,8 +5,8 @@ const std = @import("std");
 const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
-pub const board_size: usize = if (debug) 11 else 19;
-pub const max_moves: usize = if (debug) 6 else 128;
+pub const board_size: comptime_int = 19;
+pub const max_moves: comptime_int = if (debug) 6 else 128;
 
 pub const Player = enum(u8) {
     none = 0x00,
@@ -70,7 +70,7 @@ pub const Place = struct {
     y: u8,
 
     pub inline fn init(x: usize, y: usize) @This() {
-        return @This(){ .x = @intCast(x), .y = @intCast(y) };
+        return .{ .x = @intCast(x), .y = @intCast(y) };
     }
     pub inline fn eql(self: @This(), other: @This()) bool {
         return self.x == other.x and self.y == other.y;
