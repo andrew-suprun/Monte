@@ -141,14 +141,11 @@ fn parseToken(maybe_token: ?[]const u8) !Place {
     if (token[1] < '0' or token[1] > '9') return error.Error;
     const x = token[0] - 'a';
     var y = token[1] - '0';
-    print("\ny.1: {d}", .{y});
     if (token.len == 3) {
         if (token[2] < '0' or token[2] > '9') return error.Error;
         y = 10 * y + token[2] - '0';
-        print("\ny.2: {d}", .{y});
     }
     y = board_size - y;
-    print("\ny.3: x: {d} y: {d} size: {d}", .{ x, y, board_size });
     if (x > board_size or y > board_size) return error.Error;
     return Place.init(x, y);
 }

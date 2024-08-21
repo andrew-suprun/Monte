@@ -9,7 +9,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var engine = Engine.init(allocator);
+    var engine = try Engine.init(allocator);
     defer engine.deinit();
 
     try engine.run();
