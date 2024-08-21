@@ -59,38 +59,13 @@ pub fn Engine(Tree: type, Game: type) type {
 
         fn handleMove(self: *Self, token: ?[]const u8) !void {
             if (token == null) return error.Error;
-            var place_tokens = std.mem.tokenizeScalar(u8, token.?, '+');
-            const coords: [2]Game.Place = .{
-                try parseToken(place_tokens.next()),
-                try parseToken(place_tokens.next()),
-            };
             var state = self.isolate.acquire();
             defer self.isolate.release(state);
-            const move = state.game.initMove(coords);
+            const move = try state.game.initMove(token.?);
             state.tree.makeMove(move);
             state.game.makeMove(move);
             print("\nmove: {any}", .{move});
             state.game.printBoard(move);
-        }
-
-        fn parseToken(maybe_token: ?[]const u8) !Game.Place {
-            if (maybe_token == null) return error.Error;
-            const token = maybe_token.?;
-            if (token.len < 2 or token.len > 3) return error.Error;
-            if (token[0] < 'a' or token[0] > 's') return error.Error;
-            if (token[1] < '0' or token[1] > '9') return error.Error;
-            const x = token[0] - 'a';
-            var y = token[1] - '0';
-            print("\ny.1: {d}", .{y});
-            if (token.len == 3) {
-                if (token[2] < '0' or token[2] > '9') return error.Error;
-                y = 10 * y + token[2] - '0';
-                print("\ny.2: {d}", .{y});
-            }
-            y = Game.board_size - y;
-            print("\ny.3: x: {d} y: {d} size: {d}", .{ x, y, Game.board_size });
-            if (x > Game.board_size or y > Game.board_size) return error.Error;
-            return Game.Place.init(x, y);
         }
 
         fn handleGo(self: *Self) void {

@@ -52,12 +52,19 @@ pub const Move = struct {
         return p1.x == o1.x and p1.y == o1.y and p2.x == o2.x and p2.y == o2.y;
     }
 
+    pub fn str(self: @This(), buf: []u8) []u8 {
+        const i = self.places[0].str(buf);
+        buf[i] = '+';
+        const j = self.places[1].str(buf[i + 1 ..]);
+        return buf[0 .. i + j + 1];
+    }
+
     pub fn print(self: @This()) void {
         std.debug.print("[{c}{d} {c}{d}, player: {s}, winner: {s}, score: {d}]", .{
             @as(u8, @intCast(self.places[0].x)) + 'a',
-            Self.board_size - self.places[0].y,
+            board_size - self.places[0].y,
             @as(u8, @intCast(self.places[1].x)) + 'a',
-            Self.board_size - self.places[1].y,
+            board_size - self.places[1].y,
             self.player.str(),
             if (self.winner) |w| w.str() else "-",
             self.score,
@@ -72,8 +79,22 @@ pub const Place = struct {
     pub inline fn init(x: usize, y: usize) @This() {
         return .{ .x = @intCast(x), .y = @intCast(y) };
     }
+
     pub inline fn eql(self: @This(), other: @This()) bool {
         return self.x == other.x and self.y == other.y;
+    }
+
+    fn str(self: @This(), buf: []u8) usize {
+        buf[0] = self.x + 'a';
+        const y = board_size - self.y;
+        if (y >= 10) {
+            buf[1] = '1';
+            buf[2] = y - 10 + '0';
+            return 3;
+        } else {
+            buf[1] = y + '0';
+            return 2;
+        }
     }
 };
 
@@ -83,8 +104,14 @@ const Scores = [board_size][board_size]i32;
 
 pub fn initMove(
     self: *Self,
-    places: [2]Place,
-) C6Move {
+    note: []const u8,
+) !C6Move {
+    var place_tokens = std.mem.tokenizeScalar(u8, note, '+');
+    const places: [2]Place = .{
+        try parseToken(place_tokens.next()),
+        try parseToken(place_tokens.next()),
+    };
+
     const player = self.nextPlayer();
     const score1 = if (player == .first)
         self.ratePlace(places[0], .first)
@@ -106,6 +133,25 @@ pub fn initMove(
     };
 }
 
+fn parseToken(maybe_token: ?[]const u8) !Place {
+    if (maybe_token == null) return error.Error;
+    const token = maybe_token.?;
+    if (token.len < 2 or token.len > 3) return error.Error;
+    if (token[0] < 'a' or token[0] > 's') return error.Error;
+    if (token[1] < '0' or token[1] > '9') return error.Error;
+    const x = token[0] - 'a';
+    var y = token[1] - '0';
+    print("\ny.1: {d}", .{y});
+    if (token.len == 3) {
+        if (token[2] < '0' or token[2] > '9') return error.Error;
+        y = 10 * y + token[2] - '0';
+        print("\ny.2: {d}", .{y});
+    }
+    y = board_size - y;
+    print("\ny.3: x: {d} y: {d} size: {d}", .{ x, y, board_size });
+    if (x > board_size or y > board_size) return error.Error;
+    return Place.init(x, y);
+}
 pub fn makeMove(self: *Self, move: C6Move) void {
     const player = move.player;
 
@@ -521,7 +567,7 @@ pub fn printBoard(self: Self, move: C6Move) void {
     }
 
     for (0..board_size) |y| {
-        print("\n{:2}", .{Self.board_size - y});
+        print("\n{:2}", .{board_size - y});
         for (0..board_size) |x| {
             const place = Place.init(x, y);
             switch (self.board[y][x]) {
@@ -536,7 +582,7 @@ pub fn printBoard(self: Self, move: C6Move) void {
                 },
             }
         }
-        print(" {:2}", .{Self.board_size - y});
+        print(" {:2}", .{board_size - y});
     }
 
     print("\n  ", .{});
@@ -545,14 +591,21 @@ pub fn printBoard(self: Self, move: C6Move) void {
     }
 }
 
+test "Move.str" {
+    var move = Move{ .places = .{ .{ .x = 0, .y = 18 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    var buf: [7]u8 = undefined;
+    const move_str = move.str(&buf);
+    try std.testing.expectEqualSlices(u8, "a1+j10", move_str);
+}
+
 test "C6" {
     var game = Self{};
-    const move = Move{ .places = [2]Place{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    const move = try game.initMove("j10+j10");
     game.makeMove(move);
     game.printBoard(move);
     const score = game.debugScoreBoard();
     print("\nscore = {d} \n", .{score});
-    var buf: [Self.max_moves]Move = undefined;
+    var buf: [max_moves]Move = undefined;
     const moves = game.possibleMoves(&buf);
     print("\npossible moves {d}", .{moves.len});
     for (moves) |m| {
@@ -599,8 +652,8 @@ test "placePlayer" {
     var rng = Prng.init(1);
     var score: i32 = 0;
     for (1..100) |_| {
-        const x: usize = @intCast(rng.next() % Self.board_size);
-        const y: usize = @intCast(rng.next() % Self.board_size);
+        const x: usize = @intCast(rng.next() % board_size);
+        const y: usize = @intCast(rng.next() % board_size);
         const player: Player = if (rng.next() % 2 == 0) .first else .second;
         if (game.board[y][x] != .none) continue;
         score += if (player == .first) game.ratePlace(Place.init(x, y), .first) else game.ratePlace(Place.init(x, y), .second);
@@ -616,8 +669,8 @@ test "calcScores" {
     var rng = Prng.init(1);
     var score: i32 = 0;
     for (1..100) |_| {
-        const x: usize = @intCast(rng.next() % Self.board_size);
-        const y: usize = @intCast(rng.next() % Self.board_size);
+        const x: usize = @intCast(rng.next() % board_size);
+        const y: usize = @intCast(rng.next() % board_size);
         const player: Player = if (rng.next() % 2 == 0) .first else .second;
         if (game.board[y][x] != .none) continue;
         const scores = if (player == .first) game.calcScores(.first) else game.calcScores(.second);
@@ -637,8 +690,8 @@ test "bench-calcScores" {
     var timer = try std.time.Timer.start();
     for (0..1_000_000) |_| {
         for (1..100) |_| {
-            const x: usize = @intCast(rng.next() % Self.board_size);
-            const y: usize = @intCast(rng.next() % Self.board_size);
+            const x: usize = @intCast(rng.next() % board_size);
+            const y: usize = @intCast(rng.next() % board_size);
             const player: Player = if (rng.next() % 2 == 0) .first else .second;
             if (game.board[y][x] != .none) continue;
             const scores = if (player == .first) game.calcScores(.first) else game.calcScores(.second);
@@ -665,7 +718,7 @@ test "possibleMoves" {
     move = Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
     game.makeMove(move);
 
-    var buf: [Self.max_moves]Move = undefined;
+    var buf: [max_moves]Move = undefined;
     var timer = try std.time.Timer.start();
     var n_moves: usize = 0;
 
