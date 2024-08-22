@@ -27,6 +27,7 @@ const Monte = struct {
     board: [C6.board_size][C6.board_size]Player = [1][C6.board_size]Player{[1]Player{.none} ** C6.board_size} ** C6.board_size,
     highlighted_places: [4]C6.Place = undefined,
     n_highlighted_places: usize = 2,
+    winner: ?Player = null,
 
     pub fn init(allocator: std.mem.Allocator) !Monte {
         var result = Monte{
@@ -38,7 +39,7 @@ const Monte = struct {
         };
         result.board[9][9] = .first;
         const place = C6.Place.init(9, 9);
-        const move = result.game.initMove(.{ place, place });
+        const move = try result.game.initMove("j10+j10");
         result.engine.makeMove(move);
         result.game.makeMove(move);
         result.highlighted_places[0] = place;
@@ -85,6 +86,16 @@ const Monte = struct {
     }
 
     pub fn update(self: *Monte, event: Event) !void {
+        if (self.winner) |_| {
+            switch (event) {
+                .key_press => |key| {
+                    if (key.matches('c', .{ .ctrl = true }))
+                        self.should_quit = true;
+                },
+                else => {},
+            }
+            return;
+        }
         switch (event) {
             .key_press => |key| {
                 if (key.matches('c', .{ .ctrl = true }))
@@ -93,23 +104,10 @@ const Monte = struct {
                     if (self.n_highlighted_places == 4) {
                         const p1 = self.highlighted_places[2];
                         const p2 = self.highlighted_places[3];
-                        var move = self.game.initMove(.{ p1, p2 });
+                        const move = try self.game.initMoveFromCoord(p1.x, p1.y, p2.x, p2.y);
                         self.engine.makeMove(move);
                         self.game.makeMove(move);
-                        for (0..100_000) |_| {
-                            if (self.engine.root.min_result == self.engine.root.max_result) {
-                                break;
-                            }
-                            self.engine.expand(&self.game);
-                        }
-                        move = self.engine.bestMove();
-                        self.engine.makeMove(move);
-                        self.game.makeMove(move);
-                        self.n_highlighted_places = 2;
-                        self.highlighted_places[0] = move.places[0];
-                        self.highlighted_places[1] = move.places[1];
-                        self.board[move.places[0].y][move.places[0].x] = .first;
-                        self.board[move.places[1].y][move.places[1].x] = .first;
+                        self.winner = self.engineMove();
                     }
                 }
                 if (key.matches(vaxis.Key.escape, .{})) {
@@ -127,6 +125,24 @@ const Monte = struct {
             },
             else => {},
         }
+    }
+
+    pub fn engineMove(self: *Monte) ?Player {
+        for (0..100_000) |_| {
+            if (self.engine.root.min_result == self.engine.root.max_result) {
+                break;
+            }
+            self.engine.expand(&self.game);
+        }
+        const move = self.engine.bestMove();
+        self.engine.makeMove(move);
+        self.game.makeMove(move);
+        self.n_highlighted_places = 2;
+        self.highlighted_places[0] = move.places[0];
+        self.highlighted_places[1] = move.places[1];
+        self.board[move.places[0].y][move.places[0].x] = move.player;
+        self.board[move.places[1].y][move.places[1].x] = move.player;
+        return move.winner;
     }
 
     pub fn draw(self: *Monte, allocator: std.mem.Allocator) void {
@@ -215,6 +231,13 @@ const Monte = struct {
                         }
                     },
                 }
+            }
+        }
+        if (self.winner) |w| {
+            switch (w) {
+                .first => printSegment(win, "X Won", style_black_highlight, start_x + 2, start_y + 21),
+                .second => printSegment(win, "O Won", style_white_highlight, start_x + 2, start_y + 21),
+                else => {},
             }
         }
     }

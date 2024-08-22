@@ -3,6 +3,6 @@
 * fine tune max_moves
 * add randomization to bestMove()
 * minimal UI
-* experiment with Spoon and Mach UIs
+* experiment with Raylib and Mach UIs
 * multithreading
 * GUI

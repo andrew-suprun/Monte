@@ -102,16 +102,17 @@ const Self = @This();
 const C6Move = Move;
 const Scores = [board_size][board_size]i32;
 
-pub fn initMove(
-    self: *Self,
-    note: []const u8,
-) !C6Move {
+pub fn initMove(self: *Self, note: []const u8) !C6Move {
     var place_tokens = std.mem.tokenizeScalar(u8, note, '+');
     const places: [2]Place = .{
         try parseToken(place_tokens.next()),
         try parseToken(place_tokens.next()),
     };
+    return self.initMoveFromCoord(places[0].x, places[0].y, places[1].x, places[1].y);
+}
 
+pub fn initMoveFromCoord(self: *Self, x1: usize, y1: usize, x2: usize, y2: usize) !C6Move {
+    const places = [2]Place{ Place.init(x1, y1), Place.init(x2, y2) };
     const player = self.nextPlayer();
     const score1 = if (player == .first)
         self.ratePlace(places[0], .first)
@@ -149,6 +150,7 @@ fn parseToken(maybe_token: ?[]const u8) !Place {
     if (x > board_size or y > board_size) return error.Error;
     return Place.init(x, y);
 }
+
 pub fn makeMove(self: *Self, move: C6Move) void {
     const player = move.player;
 
