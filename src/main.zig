@@ -70,13 +70,13 @@ test "makeMove" {
             selected += 1;
         }
 
-        const move = game.initMove(places);
+        const move = game.initMoveFromPlaces(places);
         tree.makeMove(move);
         game.makeMove(move);
 
         tree.debugSelfCheck(game);
     }
-    game.printBoard(game.initMove(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
+    game.printBoard(game.initMoveFromPlaces(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
 }
 
 test "expand" {
@@ -85,7 +85,7 @@ test "expand" {
 
     var game = C6{};
 
-    const move = game.initMove(.{ C6.Place.init(5, 5), C6.Place.init(5, 5) });
+    const move = game.initMoveFromPlaces(.{ C6.Place.init(5, 5), C6.Place.init(5, 5) });
     print("\n move: ", .{});
     move.print();
     tree.makeMove(move);
@@ -98,5 +98,5 @@ test "expand" {
         tree.debugPrint();
         tree.debugSelfCheck(game);
     }
-    game.printBoard(game.initMove(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
+    game.printBoard(game.initMoveFromPlaces(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
 }

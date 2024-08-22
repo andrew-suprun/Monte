@@ -108,11 +108,10 @@ pub fn initMove(self: *Self, note: []const u8) !C6Move {
         try parseToken(place_tokens.next()),
         try parseToken(place_tokens.next()),
     };
-    return self.initMoveFromCoord(places[0].x, places[0].y, places[1].x, places[1].y);
+    return self.initMoveFromPlaces(places);
 }
 
-pub fn initMoveFromCoord(self: *Self, x1: usize, y1: usize, x2: usize, y2: usize) !C6Move {
-    const places = [2]Place{ Place.init(x1, y1), Place.init(x2, y2) };
+pub fn initMoveFromPlaces(self: *Self, places: [2]Place) C6Move {
     const player = self.nextPlayer();
     const score1 = if (player == .first)
         self.ratePlace(places[0], .first)
