@@ -118,18 +118,22 @@ pub fn initMoveFromPlaces(self: *Self, places: [2]Place) C6Move {
     else
         self.ratePlace(places[0], .second);
     const score2 = if (!places[0].eql(places[1])) blk: {
-        self.board[places[1].y][places[0].x] = player;
-        defer self.board[places[1].y][places[0].x] = .none;
+        self.board[places[0].y][places[0].x] = player;
+        defer self.board[places[0].y][places[0].x] = .none;
 
         break :blk if (player == .first)
             self.ratePlace(places[1], .first)
         else
             self.ratePlace(places[1], .second);
     } else 0;
+    var winner: ?Player = null;
+    if (score1 + score2 > 1024) winner = .first;
+    if (score1 + score2 < -1024) winner = .second;
     return C6Move{
         .places = sortPlaces(places[0], places[1]),
         .player = player,
         .score = score1 + score2,
+        .winner = winner,
     };
 }
 
@@ -154,9 +158,9 @@ pub fn makeMove(self: *Self, move: C6Move) void {
     const player = move.player;
 
     const p1 = move.places[0];
-    self.board[p1.y][p1.x] = player;
-
     const p2 = move.places[1];
+
+    self.board[p1.y][p1.x] = player;
     self.board[p2.y][p2.x] = player;
 
     self.n_moves += 1;
@@ -164,9 +168,9 @@ pub fn makeMove(self: *Self, move: C6Move) void {
 
 pub fn undoMove(self: *Self, move: C6Move) void {
     const p1 = move.places[0];
-    self.board[p1.y][p1.x] = .none;
-
     const p2 = move.places[1];
+
+    self.board[p1.y][p1.x] = .none;
     self.board[p2.y][p2.x] = .none;
 
     self.n_moves -= 1;

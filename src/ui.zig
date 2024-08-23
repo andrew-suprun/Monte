@@ -149,6 +149,7 @@ const Monte = struct {
         var buf: [8]u8 = undefined;
         print("\n--------\nmove {s}", .{move.str(&buf)});
         self.game.printBoard(move);
+        self.engine.debugPrintChildren();
         return move.winner;
     }
 
