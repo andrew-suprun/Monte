@@ -1,7 +1,7 @@
 const std = @import("std");
+const print = std.debug.print;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList([]u8);
-const print = std.debug.print;
 const Isolate = @import("isolate.zig").Isolate(*ArrayList);
 
 pub fn Engine(Tree: type, Game: type) type {

@@ -164,9 +164,11 @@ pub fn makeMove(self: *Self, move: C6Move) void {
 
 pub fn undoMove(self: *Self, move: C6Move) void {
     const p1 = move.places[0];
-    const p2 = move.places[1];
     self.board[p1.y][p1.x] = .none;
+
+    const p2 = move.places[1];
     self.board[p2.y][p2.x] = .none;
+
     self.n_moves -= 1;
 }
 

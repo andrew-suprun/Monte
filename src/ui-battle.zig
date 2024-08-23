@@ -54,27 +54,6 @@ const Monte = struct {
     }
 
     pub fn run(self: *Monte) !void {
-        var buf: [4096]u8 = undefined;
-        const cwd = try std.process.getCwd(&buf);
-        std.debug.print("cwd = {s}", .{cwd});
-
-        var names: [2][]const u8 = undefined;
-        var engines: [2]std.process.Child = undefined;
-        var arg_iter = std.process.args();
-        for (&names) |*name| {
-            if (arg_iter.next()) |arg| {
-                name.* = arg;
-            } else {
-                std.debug.print("Usage: ui-battle engine1 engine2\n", .{});
-                return;
-            }
-        }
-        for (names, &engines) |name, *eng| {
-            const arg = [_][]const u8{name};
-            eng.* = std.process.Child.init(&arg, self.allocator);
-            try eng.spawn();
-        }
-
         var loop: vaxis.Loop(Event) = .{
             .tty = &self.tty,
             .vaxis = &self.vx,
@@ -125,7 +104,7 @@ const Monte = struct {
                     if (self.n_highlighted_places == 4) {
                         const p1 = self.highlighted_places[2];
                         const p2 = self.highlighted_places[3];
-                        const move = self.game.initMoveFromPlaces(.{ p1, p2 });
+                        const move = try self.game.initMoveFromCoord(p1.x, p1.y, p2.x, p2.y);
                         self.engine.makeMove(move);
                         self.game.makeMove(move);
                         self.winner = self.engineMove();

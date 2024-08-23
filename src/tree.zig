@@ -14,7 +14,7 @@ pub fn SearchTree(Game: type) type {
 
         pub fn init(allocator: Allocator) Self {
             return Self{
-                .root = Node{ .move = undefined },
+                .root = Node{},
                 .allocator = allocator,
             };
         }

@@ -6,3 +6,4 @@
 * experiment with Raylib and Mach UIs
 * multithreading
 * GUI
+* Place{x:u8, y:u8} to Place{u8, u8}
