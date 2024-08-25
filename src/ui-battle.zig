@@ -1,12 +1,83 @@
 const std = @import("std");
+const print = std.debug.print;
 const vaxis = @import("vaxis");
+const Allocator = std.mem.Allocator;
 
 const C6 = @import("Connect6.zig");
 const SearchTree = @import("tree.zig").SearchTree(C6);
-
 const Player = C6.Player;
+const ArrayList = std.ArrayList([]u8);
+const Isolate = @import("isolate.zig").Isolate(*ArrayList);
 
 pub const panic = vaxis.panic_handler;
+
+const Engine = struct {
+    allocator: Allocator,
+    process: std.process.Child,
+    in: std.fs.File.Writer,
+    out: std.fs.File.Reader,
+    isolate: Isolate,
+    thread: std.Thread,
+
+    fn deinit(self: *@This()) !void {
+        for (self.isolate.t.items) |item| {
+            self.isolate.t.allocator.free(item);
+        }
+        self.isolate.t.deinit();
+        try self.in.writeAll("quit\n");
+        self.thread.join();
+    }
+};
+
+fn startEngines(allocator: Allocator) ![2]Engine {
+    var engines: [2]Engine = undefined;
+    var names: [2][]const u8 = undefined;
+    var arg_iter = std.process.args();
+    _ = arg_iter.next();
+    print("\nstartEngines\n", .{});
+    print("\nstartedEngines\n", .{});
+    for (&names) |*name| {
+        if (arg_iter.next()) |arg| {
+            name.* = arg;
+            print("# arg = {s}\n", .{arg});
+        } else {
+            return error.Error;
+        }
+    }
+    for (names, &engines) |name, *engine| {
+        const arg = [_][]const u8{name};
+        engine.process = std.process.Child.init(&arg, allocator);
+        engine.process.stdin_behavior = .Pipe;
+        engine.process.stdout_behavior = .Pipe;
+        engine.process.spawn() catch |err| {
+            print("## start error: {any}\n", .{err});
+            return err;
+        };
+        engine.in = engine.process.stdin.?.writer();
+        engine.out = engine.process.stdout.?.reader();
+        const list = try allocator.create(ArrayList);
+        list.* = ArrayList.init(allocator);
+        engine.isolate = Isolate.init(list);
+        engine.thread = try std.Thread.spawn(.{}, reader, .{ allocator, &engine.isolate });
+    }
+    return engines;
+}
+
+fn reader(allocator: Allocator, isolate: *Isolate, in: std.fs.File.Reader) !void {
+    while (true) {
+        const maybe_line = try in.readUntilDelimiterOrEofAlloc(allocator, '\n', 4096);
+        if (maybe_line) |line| {
+            print("reader: {s}", .{line});
+            var input = isolate.acquire();
+            defer isolate.release(input);
+            try input.append(line);
+
+            if (std.mem.eql(u8, line, "quit")) break;
+        } else {
+            break;
+        }
+    }
+}
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -24,18 +95,24 @@ const Monte = struct {
     winsize: vaxis.Winsize = undefined,
     engine: SearchTree,
     game: C6,
+    engines: [2]Engine = undefined,
     board: [C6.board_size][C6.board_size]Player = [1][C6.board_size]Player{[1]Player{.none} ** C6.board_size} ** C6.board_size,
     highlighted_places: [4]C6.Place = undefined,
     n_highlighted_places: usize = 2,
     winner: ?Player = null,
 
     pub fn init(allocator: std.mem.Allocator) !Monte {
+        defer print("Monte inited\n", .{});
+        print("starting", .{});
+        const engines = try startEngines(allocator);
+        print("started", .{});
         var result = Monte{
             .allocator = allocator,
             .tty = try vaxis.Tty.init(),
             .vx = try vaxis.init(allocator, .{}),
             .engine = SearchTree.init(allocator),
-            .game = C6{},
+            .game = C6.init(),
+            .engines = engines,
         };
         result.board[9][9] = .first;
         const place = C6.Place.init(9, 9);
@@ -47,10 +124,12 @@ const Monte = struct {
         return result;
     }
 
-    pub fn deinit(self: *Monte) void {
+    pub fn deinit(self: *Monte) !void {
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
         self.engine.deinit();
+        // try self.engines[0].deinit();
+        // try self.engines[1].deinit();
     }
 
     pub fn run(self: *Monte) !void {
@@ -71,11 +150,11 @@ const Monte = struct {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             defer arena.deinit();
 
-            loop.pollEvent();
-
             while (loop.tryEvent()) |event| {
+                print("event {any}\n", .{event});
                 try self.update(event);
             }
+            // TODO: use Isolate to read server output
 
             self.draw(arena.allocator());
 
@@ -104,9 +183,12 @@ const Monte = struct {
                     if (self.n_highlighted_places == 4) {
                         const p1 = self.highlighted_places[2];
                         const p2 = self.highlighted_places[3];
-                        const move = try self.game.initMoveFromCoord(p1.x, p1.y, p2.x, p2.y);
+                        const move = self.game.initMoveFromPlaces(.{ p1, p2 });
                         self.engine.makeMove(move);
                         self.game.makeMove(move);
+                        var buf: [8]u8 = undefined;
+                        print("\n--------\nmove {s}", .{move.str(&buf)});
+                        self.game.printBoard(move);
                         self.winner = self.engineMove();
                     }
                 }
@@ -128,7 +210,7 @@ const Monte = struct {
     }
 
     pub fn engineMove(self: *Monte) ?Player {
-        for (0..100_000) |_| {
+        for (0..1000) |_| {
             if (self.engine.root.min_result == self.engine.root.max_result) {
                 break;
             }
@@ -142,6 +224,10 @@ const Monte = struct {
         self.highlighted_places[1] = move.places[1];
         self.board[move.places[0].y][move.places[0].x] = move.player;
         self.board[move.places[1].y][move.places[1].x] = move.player;
+        var buf: [8]u8 = undefined;
+        print("\n--------\nmove {s}", .{move.str(&buf)});
+        self.game.printBoard(move);
+        self.engine.debugPrintChildren();
         return move.winner;
     }
 
@@ -196,14 +282,14 @@ const Monte = struct {
 
                 switch (self.board[y][x]) {
                     .first => if (highlight) {
-                        printSegment(win, "X", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "X", style_black, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     .second => if (highlight) {
-                        printSegment(win, "O", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "O", style_white, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     // .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
                     else => {
@@ -303,8 +389,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     // Initialize our application
-    var app = try Monte.init(allocator);
-    defer app.deinit();
+    var app = Monte.init(allocator) catch {
+        print("Usage: ui-battle engine1 engine2\n", .{});
+        std.process.exit(1);
+    };
+    defer _ = app.deinit() catch unreachable;
 
     // Run the application
     try app.run();

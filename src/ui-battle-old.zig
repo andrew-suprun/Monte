@@ -28,12 +28,11 @@ const Engine = struct {
 
     fn deinit(self: *@This()) !void {
         for (self.isolate.t.items) |item| {
-            print("# freeing {s}\n", .{item});
             self.isolate.t.allocator.free(item);
         }
         self.isolate.t.deinit();
-        self.isolate.t.allocator.destroy(self.isolate.t);
-        // self.thread.detach();
+        try self.in.writeAll("quit\n");
+        self.thread.join();
     }
 };
 
@@ -255,14 +254,14 @@ const Monte = struct {
 
                 switch (self.board[y][x]) {
                     .first => if (highlight) {
-                        printSegment(win, "X", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "X", style_black, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     .second => if (highlight) {
-                        printSegment(win, "O", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "O", style_white, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     // .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
                     else => {

@@ -13,7 +13,7 @@ pub fn main() !void {
     var tree = Tree.init(allocator);
     defer tree.deinit();
 
-    var game = C6{};
+    var game = C6.init();
 
     const mid = C6.board_size / 2;
     var move = C6.Move{ .places = .{ .{ .x = mid, .y = mid }, .{ .x = mid, .y = mid } }, .score = 0, .player = .first };
@@ -57,7 +57,7 @@ test "makeMove" {
     var tree = Tree.init(std.testing.allocator);
     defer tree.deinit();
 
-    var game = C6{};
+    var game = C6.init();
 
     for (0..30) |_| {
         var places: [2]C6.Place = undefined;
@@ -83,7 +83,7 @@ test "expand" {
     var tree = Tree.init(std.testing.allocator);
     defer tree.deinit();
 
-    var game = C6{};
+    var game = C6.init();
 
     const move = game.initMoveFromPlaces(.{ C6.Place.init(5, 5), C6.Place.init(5, 5) });
     print("\n move: ", .{});

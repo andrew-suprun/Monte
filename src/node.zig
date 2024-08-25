@@ -143,7 +143,7 @@ pub fn Node(Game: type) type {
                 }
             }
             if (self.score != score or self.max_result != max or self.min_result != min) {
-                print("\nscore = {d} max = {s} min = {s}", .{ score, max.str(), min.str() });
+                print("\nscore = {d} min = {s} max = {s}", .{ score, min.str(), max.str() });
                 self.debugPrintRecursive(0);
                 std.debug.panic("", .{});
             }

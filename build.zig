@@ -10,10 +10,12 @@ pub fn build(b: *std.Build) void {
     });
 
     const exe = b.addExecutable(.{
-        .name = "Monte",
-        .root_source_file = b.path("src/ui.zig"),
-        // .name = "ui-battle",
-        // .root_source_file = b.path("src/ui-battle.zig"),
+        // .name = "Monte",
+        // .root_source_file = b.path("src/main.zig"),
+        // .name = "Monte",
+        // .root_source_file = b.path("src/ui.zig"),
+        .name = "ui-battle",
+        .root_source_file = b.path("src/ui-battle.zig"),
         .target = target,
         .optimize = optimize,
     });

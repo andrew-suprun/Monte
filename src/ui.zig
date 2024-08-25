@@ -36,7 +36,7 @@ const Monte = struct {
             .tty = try vaxis.Tty.init(),
             .vx = try vaxis.init(allocator, .{}),
             .engine = SearchTree.init(allocator),
-            .game = C6{},
+            .game = C6.init(),
         };
         result.board[9][9] = .first;
         const place = C6.Place.init(9, 9);

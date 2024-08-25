@@ -9,7 +9,6 @@ pub fn Engine(Tree: type, Game: type) type {
         allocator: Allocator,
         tree: Tree,
         game: Game,
-        out: std.fs.File.Writer,
         thread: std.Thread = undefined,
         running: bool = false,
         quit: bool = false,
@@ -24,7 +23,6 @@ pub fn Engine(Tree: type, Game: type) type {
                 .allocator = allocator,
                 .tree = Tree.init(allocator),
                 .game = Game{},
-                .out = std.io.getStdOut().writer(),
                 .isolate = Isolate.init(list),
             };
         }
@@ -36,16 +34,16 @@ pub fn Engine(Tree: type, Game: type) type {
                 self.allocator.free(item);
             }
             input.deinit();
-            // self.thread.join();
+            self.thread.join();
         }
 
-        // TODO fix crash on first 'go' command
         pub fn run(self: *Self) !void {
             self.thread = try std.Thread.spawn(.{}, reader, .{ self.allocator, &self.isolate });
             while (!self.quit) {
                 if (self.running) {
-                    for (0..100) |_|
+                    for (0..100) |_| {
                         self.tree.expand(&self.game);
+                    }
                 }
                 var input = self.isolate.acquire();
                 defer self.isolate.release(input);
@@ -68,8 +66,8 @@ pub fn Engine(Tree: type, Game: type) type {
                 if (std.mem.eql(u8, command, "move")) try self.handleMove(tokens.next());
                 if (std.mem.eql(u8, command, "best-move")) try self.handleBestMove();
                 if (std.mem.eql(u8, command, "info")) try self.handleInfo();
-                if (std.mem.eql(u8, command, "go")) self.running = true;
-                if (std.mem.eql(u8, command, "stop")) self.running = false;
+                if (std.mem.eql(u8, command, "go")) self.handleGo();
+                if (std.mem.eql(u8, command, "stop")) self.handleStop();
                 if (std.mem.eql(u8, command, "quit")) self.quit = true;
             }
         }
@@ -86,20 +84,25 @@ pub fn Engine(Tree: type, Game: type) type {
         fn handleBestMove(self: *Self) !void {
             const move = self.tree.bestMove();
             var buf: [7]u8 = undefined;
-            print("best-move {s}\n", .{move.str(&buf)});
+            try std.io.getStdOut().writer().print("best-move {s}\n", .{move.str(&buf)});
         }
 
         fn handleInfo(self: *Self) !void {
-            print("extentions {d}\n", .{self.tree.root.n_extentions});
+            try std.io.getStdOut().writer().print("extentions {d}\n", .{self.tree.root.n_extentions});
+        }
+
+        fn handleGo(self: *Self) void {
+            print("running\n", .{});
+            self.running = true;
         }
 
         fn handleStop(self: *Self) void {
+            print("stopped\n", .{});
             self.running = false;
         }
 
-        fn replyError(self: Self, message: []const u8) void {
-            _ = self;
-            print("ERROR: {s}\n", .{message});
+        fn replyError(message: []const u8) !void {
+            try std.io.getStdOut().writer().print("ERROR: {s}\n", .{message});
         }
     };
 }

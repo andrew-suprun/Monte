@@ -32,8 +32,8 @@ pub const Player = enum(u8) {
     pub fn str(self: @This()) []const u8 {
         return switch (self) {
             .none => "=",
-            .first => "X",
-            .second => "O",
+            .first => "O",
+            .second => "X",
         };
     }
 };
@@ -99,10 +99,15 @@ pub const Place = struct {
 };
 
 const Self = @This();
-const C6Move = Move;
 const Scores = [board_size][board_size]i32;
 
-pub fn initMove(self: *Self, note: []const u8) !C6Move {
+pub fn init() Self {
+    var self = Self{};
+    self.board[board_size / 2][board_size / 2] = .second;
+    return self;
+}
+
+pub fn initMove(self: *Self, note: []const u8) !Move {
     var place_tokens = std.mem.tokenizeScalar(u8, note, '+');
     const places: [2]Place = .{
         try parseToken(place_tokens.next()),
@@ -111,7 +116,7 @@ pub fn initMove(self: *Self, note: []const u8) !C6Move {
     return self.initMoveFromPlaces(places);
 }
 
-pub fn initMoveFromPlaces(self: *Self, places: [2]Place) C6Move {
+pub fn initMoveFromPlaces(self: *Self, places: [2]Place) Move {
     const player = self.nextPlayer();
     const score1 = if (player == .first)
         self.ratePlace(places[0], .first)
@@ -129,7 +134,7 @@ pub fn initMoveFromPlaces(self: *Self, places: [2]Place) C6Move {
     var winner: ?Player = null;
     if (score1 + score2 > 1024) winner = .first;
     if (score1 + score2 < -1024) winner = .second;
-    return C6Move{
+    return Move{
         .places = sortPlaces(places[0], places[1]),
         .player = player,
         .score = score1 + score2,
@@ -154,7 +159,7 @@ fn parseToken(maybe_token: ?[]const u8) !Place {
     return Place.init(x, y);
 }
 
-pub fn makeMove(self: *Self, move: C6Move) void {
+pub fn makeMove(self: *Self, move: Move) void {
     const player = move.player;
 
     const p1 = move.places[0];
@@ -166,7 +171,7 @@ pub fn makeMove(self: *Self, move: C6Move) void {
     self.n_moves += 1;
 }
 
-pub fn undoMove(self: *Self, move: C6Move) void {
+pub fn undoMove(self: *Self, move: Move) void {
     const p1 = move.places[0];
     const p2 = move.places[1];
 
@@ -176,7 +181,7 @@ pub fn undoMove(self: *Self, move: C6Move) void {
     self.n_moves -= 1;
 }
 
-pub fn possibleMoves(self: *Self, buf: []C6Move) []C6Move {
+pub fn possibleMoves(self: *Self, buf: []Move) []Move {
     const player = self.nextPlayer();
     var place_buf: [board_size * board_size]Place = undefined;
     if (player == .first) {
@@ -200,11 +205,11 @@ fn possiblePlaces(self: Self, comptime player: Player, scores: Scores, place_lis
     return heap.sorted(place_list);
 }
 
-fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list: []Place, buf: []C6Move) []C6Move {
+fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list: []Place, buf: []Move) []Move {
     var heap = if (player == .first) HeapBlack.init({}) else HeapWhite.init({});
 
     if (scores[place_list[0].y][place_list[0].x] == 0) {
-        buf[0] = C6Move{
+        buf[0] = Move{
             .places = sortPlaces(place_list[0], place_list[1]),
             .player = player,
             .score = 0,
@@ -236,7 +241,7 @@ fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list:
             else if (score2 < -1024)
                 return winningMove(p1, p2, .second, score2, buf);
 
-            heap.add(C6Move{
+            heap.add(Move{
                 .places = sortPlaces(p1, p2),
                 .player = player,
                 .score = score1 + score2,
@@ -332,8 +337,8 @@ fn ratePlace(self: Self, place: Place, comptime player: Player) i32 {
     return score;
 }
 
-fn winningMove(p1: Place, p2: Place, player: Player, score: i32, buf: []C6Move) []C6Move {
-    buf[0] = C6Move{
+fn winningMove(p1: Place, p2: Place, player: Player, score: i32, buf: []Move) []Move {
+    buf[0] = Move{
         .places = sortPlaces(p1, p2),
         .player = player,
         .winner = player,
@@ -420,13 +425,13 @@ fn calcScores(self: Self, comptime player: Player) Scores {
     return scores;
 }
 
-const HeapBlack = @import("heap.zig").Heap(C6Move, void, cmpBlack, max_moves);
-fn cmpBlack(_: void, a: C6Move, b: C6Move) bool {
+const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
+fn cmpBlack(_: void, a: Move, b: Move) bool {
     return a.score < b.score;
 }
 
-const HeapWhite = @import("heap.zig").Heap(C6Move, void, cmpWhite, max_moves);
-fn cmpWhite(_: void, a: C6Move, b: C6Move) bool {
+const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
+fn cmpWhite(_: void, a: Move, b: Move) bool {
     return a.score > b.score;
 }
 
@@ -562,7 +567,7 @@ fn debugRate(players: i32) i32 {
     };
 }
 
-pub fn printBoard(self: Self, move: C6Move) void {
+pub fn printBoard(self: Self, move: Move) void {
     const place1 = move.places[0];
     const place2 = move.places[1];
     print("\n  ", .{});
