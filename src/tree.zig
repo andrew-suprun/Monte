@@ -4,9 +4,11 @@ const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 pub fn SearchTree(Game: type) type {
+    const Move = Game.Move;
+
     return struct {
         root: Node,
-        acc: i32 = 0,
+        acc: i32 = Game.empty_board_score,
         allocator: Allocator,
 
         const Self = @This();
@@ -31,49 +33,48 @@ pub fn SearchTree(Game: type) type {
         fn expandRecursive(self: *Self, game: *Game, node: *Node, acc: i32) void {
             defer node.updateStats();
 
-            if (node.children.len > 0) {
-                const child = if (node.move.player == .second)
+            if (node.child_moves.len > 0) {
+                const child = if (node.child_moves[0].player == .first)
                     node.selectChild(.first)
                 else
                     node.selectChild(.second);
 
                 game.makeMove(child.move);
-                self.expandRecursive(game, child, acc + child.move.score);
+                self.expandRecursive(game, child.node, acc + child.move.score);
                 game.undoMove(child.move);
                 return;
             }
 
-            var buf: [Game.max_moves]Game.Move = undefined;
-            const moves = game.possibleMoves(&buf);
+            node.child_moves = game.possibleMoves(self.allocator);
 
-            node.children = self.allocator.alloc(Node, moves.len) catch unreachable;
-            for (node.children, moves) |*child, move| {
-                child.* = Node{ .move = move };
+            node.child_nodes = self.allocator.alloc(Node, node.child_moves.len) catch unreachable;
+            for (node.child_moves, node.child_nodes) |move, *child| {
+                child.* = Node{};
                 child.score = @divTrunc(move.score, 2) + acc;
-                if (child.move.winner) |w| {
+                if (move.winner) |w| {
                     child.max_result = w;
                     child.min_result = w;
                 }
             }
         }
 
-        pub fn bestMove(self: Self) Game.Move {
+        pub fn bestMove(self: Self) Move {
             return self.root.bestMove();
         }
 
-        pub fn bestLine(self: Self, game: Game, buf: []Game.Move) []Game.Move {
+        pub fn bestLine(self: Self, game: Game, buf: []Move) []Move {
             var clone = game;
             var node = self.root;
             for (0..buf.len) |i| {
-                if (node.children.len == 0) {
+                if (node.child_moves.len == 0) {
                     return buf[0..i];
                 }
                 const move = node.bestMove();
-                for (node.children) |child| {
-                    if (child.move.eql(move)) {
+                for (node.child_moves, node.child_nodes) |child_move, child_node| {
+                    if (child_move.eql(move)) {
                         buf[i] = move;
-                        node = child;
-                        _ = clone.makeMove(node.move);
+                        node = child_node;
+                        _ = clone.makeMove(child_move);
                         break;
                     }
                 } else {
@@ -83,13 +84,14 @@ pub fn SearchTree(Game: type) type {
             return buf;
         }
 
-        pub fn makeMove(self: *Self, move: Game.Move) void {
+        pub fn makeMove(self: *Self, move: Move) void {
             self.acc += move.score;
             var new_root: ?Node = null;
-            for (self.root.children) |*child| {
-                if (child.move.eql(move)) {
-                    new_root = child.*;
-                    child.children = &[_]Node{};
+            for (self.root.child_moves, self.root.child_nodes) |child_move, *child_node| {
+                if (child_move.eql(move)) {
+                    new_root = child_node.*;
+                    child_node.child_moves = &[_]Move{};
+                    child_node.child_nodes = &[_]Node{};
                     break;
                 }
             }
@@ -97,7 +99,7 @@ pub fn SearchTree(Game: type) type {
             if (new_root) |root| {
                 self.root = root;
             } else {
-                self.root = Node{ .move = move };
+                self.root = Node{};
             }
         }
 
@@ -106,7 +108,10 @@ pub fn SearchTree(Game: type) type {
         }
 
         pub fn debugPrint(self: Self) void {
-            self.root.debugPrintRecursive(0);
+            self.root.debugPrint();
+            for (self.root.child_moves, self.root.child_nodes) |child_move, child_node| {
+                child_node.debugPrintRecursive(child_move, 0);
+            }
         }
 
         pub fn debugPrintChildren(self: Self) void {

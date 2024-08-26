@@ -98,7 +98,7 @@ fn cmp(ctxt: usize, a: usize, b: usize) bool {
 const Prng = std.rand.Random.DefaultPrng;
 const assert = std.debug.assert;
 
-test {
+test "unsorted" {
     var prng = Prng.init(@intCast(std.time.microTimestamp()));
     var heap = Heap(usize, usize, cmp, 20).init(42);
     for (0..100) |_| {
@@ -106,7 +106,10 @@ test {
     }
     assert(heap.len == 20);
     var buf: [20]usize = undefined;
+    const unsorted = heap.unsorted(&buf);
+    print("unsorted {any}\n", .{unsorted});
     const sorted = heap.sorted(&buf);
+    print("sorted   {any}\n", .{sorted});
     for (1..sorted.len) |i| {
         assert(sorted[i - 1] >= sorted[i]);
     }

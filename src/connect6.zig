@@ -6,7 +6,9 @@ const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 pub const board_size: comptime_int = 19;
-pub const max_moves: comptime_int = if (debug) 6 else 128;
+pub const max_moves: comptime_int = if (debug) 6 else 200;
+pub const max_places: comptime_int = if (debug) 6 else 200;
+pub const empty_board_score = -24;
 
 pub const Player = enum(u8) {
     none = 0x00,
@@ -60,11 +62,10 @@ pub const Move = struct {
     }
 
     pub fn print(self: @This()) void {
-        std.debug.print("[{c}{d} {c}{d}, player: {s}, winner: {s}, score: {d}]", .{
-            @as(u8, @intCast(self.places[0].x)) + 'a',
-            board_size - self.places[0].y,
-            @as(u8, @intCast(self.places[1].x)) + 'a',
-            board_size - self.places[1].y,
+        var buf: [8]u8 = undefined;
+        const move_str = self.str(&buf);
+        std.debug.print("[{s}, player: {s}, winner: {s}, score: {d}]", .{
+            move_str,
             self.player.str(),
             if (self.winner) |w| w.str() else "-",
             self.score,
@@ -82,6 +83,12 @@ pub const Place = struct {
 
     pub inline fn eql(self: @This(), other: @This()) bool {
         return self.x == other.x and self.y == other.y;
+    }
+
+    pub inline fn less(self: @This(), other: @This()) bool {
+        if (self.x < other.x) return true;
+        if (self.x > other.x) return false;
+        return self.y < other.y;
     }
 
     fn str(self: @This(), buf: []u8) usize {
@@ -181,49 +188,53 @@ pub fn undoMove(self: *Self, move: Move) void {
     self.n_moves -= 1;
 }
 
-pub fn possibleMoves(self: *Self, buf: []Move) []Move {
+pub fn possibleMoves(self: *Self, allocator: std.mem.Allocator) []Move {
     const player = self.nextPlayer();
+
     var place_buf: [board_size * board_size]Place = undefined;
     if (player == .first) {
         const scores = self.calcScores(.first);
         const place_list = self.possiblePlaces(.first, scores, &place_buf);
-        return self.selectMoves(.first, scores, place_list, buf);
+        return self.selectMoves(.first, scores, place_list, allocator);
     } else {
         const scores = self.calcScores(.second);
         const place_list = self.possiblePlaces(.second, scores, &place_buf);
-        return self.selectMoves(.second, scores, place_list, buf);
+        return self.selectMoves(.second, scores, place_list, allocator);
     }
 }
 
 fn possiblePlaces(self: Self, comptime player: Player, scores: Scores, place_list: []Place) []Place {
-    var heap = if (player == .first) HeapPlaceBlack.init(scores) else HeapPlaceWhite.init(scores);
+    var heap = if (player == .first) HeapPlaceWhite.init(scores) else HeapPlaceBlack.init(scores);
     for (0..board_size) |y| {
         for (0..board_size) |x| {
-            if (self.board[y][x] == .none) heap.add(Place.init(x, y));
+            if (self.board[y][x] == .none) {
+                heap.add(Place.init(x, y));
+            }
         }
     }
-    return heap.sorted(place_list);
+    return heap.sorted(place_list); // TODO: unsorted
 }
 
-fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list: []Place, buf: []Move) []Move {
-    var heap = if (player == .first) HeapBlack.init({}) else HeapWhite.init({});
+fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list: []Place, allocator: std.mem.Allocator) []Move {
+    var heap = if (player == .first) HeapWhite.init({}) else HeapBlack.init({});
 
     if (scores[place_list[0].y][place_list[0].x] == 0) {
-        buf[0] = Move{
+        var moves = allocator.alloc(Move, 1) catch unreachable;
+        moves[0] = Move{
             .places = sortPlaces(place_list[0], place_list[1]),
             .player = player,
             .score = 0,
             .winner = .none,
         };
-        return buf[0..1];
+        return moves;
     }
 
     for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
         const score1 = scores[p1.y][p1.x];
         if (score1 > 1024)
-            return winningMove(p1, p1, .first, score1, buf)
+            return winningMove(p1, p1, .first, score1, allocator)
         else if (score1 < -1024)
-            return winningMove(p1, p1, .second, score1, buf);
+            return winningMove(p1, p1, .second, score1, allocator);
 
         for (i + 1..place_list.len) |j| {
             var score2: i32 = undefined;
@@ -237,9 +248,9 @@ fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list:
             }
 
             if (score2 > 1024)
-                return winningMove(p1, p2, .first, score2, buf)
+                return winningMove(p1, p2, .first, score2, allocator)
             else if (score2 < -1024)
-                return winningMove(p1, p2, .second, score2, buf);
+                return winningMove(p1, p2, .second, score2, allocator);
 
             heap.add(Move{
                 .places = sortPlaces(p1, p2),
@@ -248,7 +259,8 @@ fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list:
             });
         }
     }
-    return heap.sorted(buf);
+    const moves = allocator.alloc(Move, heap.len) catch unreachable;
+    return heap.sorted(moves); // TODO: unsorted
 }
 
 fn sortPlaces(p1: Place, p2: Place) [2]Place {
@@ -337,14 +349,15 @@ fn ratePlace(self: Self, place: Place, comptime player: Player) i32 {
     return score;
 }
 
-fn winningMove(p1: Place, p2: Place, player: Player, score: i32, buf: []Move) []Move {
-    buf[0] = Move{
+fn winningMove(p1: Place, p2: Place, player: Player, score: i32, allocator: std.mem.Allocator) []Move {
+    var moves = allocator.alloc(Move, 1) catch unreachable;
+    moves[0] = Move{
         .places = sortPlaces(p1, p2),
         .player = player,
         .winner = player,
         .score = score,
     };
-    return buf[0..1];
+    return moves;
 }
 
 fn calcScores(self: Self, comptime player: Player) Scores {
@@ -425,24 +438,30 @@ fn calcScores(self: Self, comptime player: Player) Scores {
     return scores;
 }
 
-const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
+const HeapWhite = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
 fn cmpBlack(_: void, a: Move, b: Move) bool {
-    return a.score < b.score;
+    if (a.score < b.score) return true;
+    if (a.score > b.score) return false;
+    if (a.places[0].less(b.places[0])) return true;
+    if (b.places[0].less(a.places[0])) return false;
+    return a.places[1].less(b.places[1]);
 }
 
-const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
+const HeapBlack = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
 fn cmpWhite(_: void, a: Move, b: Move) bool {
-    return a.score > b.score;
+    return cmpBlack({}, b, a);
 }
 
-const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_moves / 2);
+const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_places);
 fn cmpPlaceBlack(scores: Scores, a: Place, b: Place) bool {
-    return scores[a.y][a.x] < scores[b.y][b.x];
+    if (scores[a.y][a.x] < scores[b.y][b.x]) return true;
+    if (scores[a.y][a.x] > scores[b.y][b.x]) return false;
+    return a.less(b);
 }
 
-const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_moves / 2);
+const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_places);
 fn cmpPlaceWhite(scores: Scores, a: Place, b: Place) bool {
-    return scores[a.y][a.x] > scores[b.y][b.x];
+    return cmpPlaceBlack(scores, b, a);
 }
 
 inline fn nextPlayer(self: Self) Player {
@@ -456,9 +475,9 @@ const four_players = 60;
 const five_players = 120;
 const six_players = 2048;
 
-fn calcScore(comptime player: Player, players: i32) i32 {
+fn calcScore(comptime player: Player, stones: i32) i32 {
     return if (player == .first)
-        switch (players) {
+        switch (stones) {
             0x00 => one_player,
             0x01 => two_players - one_player,
             0x02 => three_players - two_players,
@@ -472,7 +491,7 @@ fn calcScore(comptime player: Player, players: i32) i32 {
             0x50 => five_players,
             else => 0,
         }
-    else switch (players) {
+    else switch (stones) {
         0x00 => -one_player,
         0x01 => -one_player,
         0x02 => -two_players,
@@ -487,7 +506,9 @@ fn calcScore(comptime player: Player, players: i32) i32 {
         else => 0,
     };
 }
-fn debugScoreBoard(self: Self) i32 {
+
+// TODO unpub
+pub fn debugScoreBoard(self: Self) i32 {
     var result: i32 = 0;
 
     for (0..board_size) |a| {
@@ -580,8 +601,8 @@ pub fn printBoard(self: Self, move: Move) void {
         for (0..board_size) |x| {
             const place = Place.init(x, y);
             switch (self.board[y][x]) {
-                .first => if (place.eql(place1) or place.eql(place2)) print("─#", .{}) else print("─X", .{}),
-                .second => if (place.eql(place1) or place.eql(place2)) print("─@", .{}) else print("─O", .{}),
+                .first => if (place.eql(place1) or place.eql(place2)) print("─@", .{}) else print("─O", .{}),
+                .second => if (place.eql(place1) or place.eql(place2)) print("─#", .{}) else print("─X", .{}),
                 else => {
                     if (y == 0) {
                         if (x == 0) print(" ┌", .{}) else if (x == board_size - 1) print("─┐", .{}) else print("─┬", .{});
@@ -608,19 +629,20 @@ test "Move.str" {
 }
 
 test "C6" {
-    var game = Self{};
-    const move = try game.initMove("j10+j10");
-    game.makeMove(move);
-    game.printBoard(move);
+    var game = Self.init();
+    game.printBoard(undefined);
     const score = game.debugScoreBoard();
     print("\nscore = {d} \n", .{score});
-    var buf: [max_moves]Move = undefined;
-    const moves = game.possibleMoves(&buf);
-    print("\npossible moves {d}", .{moves.len});
+    const moves = game.possibleMoves(std.testing.allocator);
+    defer std.testing.allocator.free(moves);
+    // print("\npossible moves {d}", .{moves.len});
     for (moves) |m| {
-        game.makeMove(m);
+        var new_game = game;
+        new_game.makeMove(m);
+        // print("\n\n", .{});
+        // m.print();
+        // new_game.printBoard(m);
     }
-    game.printBoard(move);
 }
 
 const Prng = std.rand.Random.DefaultPrng;
@@ -715,24 +737,13 @@ test "bench-calcScores" {
 test "possibleMoves" {
     var game = Self{};
 
-    var move = Move{ .places = .{ .{ .x = 9, .y = 9 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
-    game.makeMove(move);
-
-    move = Move{ .places = .{ .{ .x = 8, .y = 9 }, .{ .x = 8, .y = 8 } }, .score = 0, .player = .second };
-    game.makeMove(move);
-
-    move = Move{ .places = .{ .{ .x = 8, .y = 10 }, .{ .x = 9, .y = 10 } }, .score = 71, .player = .first };
-    game.makeMove(move);
-
-    move = Move{ .places = .{ .{ .x = 9, .y = 8 }, .{ .x = 7, .y = 10 } }, .score = -87, .player = .second };
-    game.makeMove(move);
-
-    var buf: [max_moves]Move = undefined;
     var timer = try std.time.Timer.start();
     var n_moves: usize = 0;
 
     for (0..10_000) |_| {
-        n_moves += game.possibleMoves(&buf).len;
+        const moves = game.possibleMoves(std.testing.allocator);
+        n_moves += moves.len;
+        std.testing.allocator.free(moves);
     }
 
     print("\ntime {}ms", .{timer.read() / 1_000_000});

@@ -14,31 +14,27 @@ pub fn main() !void {
     defer tree.deinit();
 
     var game = C6.init();
-
-    const mid = C6.board_size / 2;
-    var move = C6.Move{ .places = .{ .{ .x = mid, .y = mid }, .{ .x = mid, .y = mid } }, .score = 0, .player = .first };
+    var move = try game.initMove("i9+i11");
     tree.makeMove(move);
     game.makeMove(move);
-
-    // move = C6.Move{ .places = .{ .{ .x = mid - 1, .y = mid }, .{ .x = mid - 1, .y = mid - 1 } }, .score = 0, .player = .second };
-    // tree.makeMove(move);
-    // game.makeMove(move);
+    game.printBoard(move);
 
     while (true) {
-        for (0..100_000) |i| {
+        const children = tree.root.child_moves;
+        const n: usize = if (children.len == 0 or children[0].player == .second) 10_000 else 100_000;
+        for (0..n) |i| {
             if (tree.root.min_result == tree.root.max_result) {
-                print("\nexpand n: {d} winner: {s} move: ", .{ i, tree.root.max_result.str() });
-                move.print();
-                tree.debugPrintChildren();
-                print("\n", .{});
+                print("\nexpand n: {d} winner: {s}", .{ i, tree.root.max_result.str() });
                 break;
             }
             tree.expand(&game);
         }
         move = tree.bestMove();
+        print("\n", .{});
+        move.print();
+        tree.root.debugPrintChildren();
         tree.makeMove(move);
         game.makeMove(move);
-        move.print();
         game.printBoard(move);
         if (move.winner) |_| break;
     }
@@ -85,11 +81,13 @@ test "expand" {
 
     var game = C6.init();
 
-    const move = game.initMoveFromPlaces(.{ C6.Place.init(5, 5), C6.Place.init(5, 5) });
+    const move = game.initMoveFromPlaces(.{ C6.Place.init(8, 9), C6.Place.init(8, 8) });
     print("\n move: ", .{});
     move.print();
+    print("\nscore board 1: {d}\n", .{game.debugScoreBoard()});
     tree.makeMove(move);
     game.makeMove(move);
+    print("score board 2: {d}\n", .{game.debugScoreBoard()});
     game.printBoard(move);
 
     for (0..30) |i| {
@@ -98,5 +96,4 @@ test "expand" {
         tree.debugPrint();
         tree.debugSelfCheck(game);
     }
-    game.printBoard(game.initMoveFromPlaces(.{ C6.Place.init(5, 5), C6.Place.init(9, 9) }));
 }
