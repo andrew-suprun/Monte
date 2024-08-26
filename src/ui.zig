@@ -38,11 +38,8 @@ const Monte = struct {
             .engine = SearchTree.init(allocator),
             .game = C6.init(),
         };
-        result.board[9][9] = .first;
+        result.board[9][9] = .second;
         const place = C6.Place.init(9, 9);
-        const move = try result.game.initMove("j10+j10");
-        result.engine.makeMove(move);
-        result.game.makeMove(move);
         result.highlighted_places[0] = place;
         result.highlighted_places[1] = place;
         return result;
@@ -183,7 +180,7 @@ const Monte = struct {
                 if (self.board[y][x] != .none) break :mouse_blk;
                 if (self.n_highlighted_places == 4) break :mouse_blk;
 
-                self.board[y][x] = .second;
+                self.board[y][x] = .first;
                 self.highlighted_places[self.n_highlighted_places] = C6.Place.init(x, y);
                 self.n_highlighted_places += 1;
             }
@@ -204,14 +201,14 @@ const Monte = struct {
 
                 switch (self.board[y][x]) {
                     .first => if (highlight) {
-                        printSegment(win, "X", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "X", style_black, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     .second => if (highlight) {
-                        printSegment(win, "O", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "O", style_white, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     // .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
                     else => {
@@ -243,8 +240,8 @@ const Monte = struct {
         }
         if (self.winner) |w| {
             switch (w) {
-                .first => printSegment(win, "X Won", style_black_highlight, start_x + 2, start_y + 21),
-                .second => printSegment(win, "O Won", style_white_highlight, start_x + 2, start_y + 21),
+                .first => printSegment(win, "O Won", style_black_highlight, start_x + 2, start_y + 21),
+                .second => printSegment(win, "X Won", style_white_highlight, start_x + 2, start_y + 21),
                 else => {},
             }
         }
