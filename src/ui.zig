@@ -129,7 +129,7 @@ const Monte = struct {
     }
 
     pub fn engineMove(self: *Monte) ?Player {
-        for (0..1000) |_| {
+        for (0..10_000) |_| {
             if (self.engine.root.min_result == self.engine.root.max_result) {
                 break;
             }
@@ -201,14 +201,14 @@ const Monte = struct {
 
                 switch (self.board[y][x]) {
                     .first => if (highlight) {
-                        printSegment(win, "O", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "O", style_black, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_white, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     .second => if (highlight) {
-                        printSegment(win, "X", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "X", style_white, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_black, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     // .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
                     else => {
@@ -240,8 +240,8 @@ const Monte = struct {
         }
         if (self.winner) |w| {
             switch (w) {
-                .first => printSegment(win, "O Won", style_black_highlight, start_x + 2, start_y + 21),
-                .second => printSegment(win, "X Won", style_white_highlight, start_x + 2, start_y + 21),
+                .first => printSegment(win, "O Won", style_white_highlight, start_x + 2, start_y + 21),
+                .second => printSegment(win, "X Won", style_black_highlight, start_x + 2, start_y + 21),
                 else => {},
             }
         }

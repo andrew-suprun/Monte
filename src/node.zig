@@ -190,6 +190,7 @@ pub fn Node(Game: type) type {
 
         pub fn debugPrintChildren(self: Self) void {
             print("\n", .{});
+            self.debugPrint();
             for (self.child_moves, self.child_nodes) |child_move, child_node| {
                 child_node.debugPrintLevel(child_move, 0);
             }

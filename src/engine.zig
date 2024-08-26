@@ -22,7 +22,7 @@ pub fn Engine(Tree: type, Game: type) type {
             return .{
                 .allocator = allocator,
                 .tree = Tree.init(allocator),
-                .game = Game{},
+                .game = Game.init(),
                 .isolate = Isolate.init(list),
             };
         }
