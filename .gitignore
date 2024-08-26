@@ -2,9 +2,7 @@
 zig-out
 .DS_Store
 *.log
-explore.zig
-.build
+.vscode
 playground.*
 Monte
-ols.json
-c6*
+/c6*
