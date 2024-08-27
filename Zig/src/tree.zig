@@ -16,7 +16,7 @@ pub fn SearchTree(Game: type) type {
 
         pub fn init(allocator: Allocator) Self {
             return Self{
-                .root = Node{ .player = .second },
+                .root = Node{ .player = .second, .move = undefined },
                 .allocator = allocator,
             };
         }
@@ -33,25 +33,25 @@ pub fn SearchTree(Game: type) type {
         fn expandRecursive(self: *Self, game: *Game, node: *Node, acc: i32) void {
             defer node.updateStats();
 
-            if (node.child_moves.len > 0) {
+            if (node.children.len > 0) {
                 const child = if (node.player == .second)
                     node.selectChild(.first)
                 else
                     node.selectChild(.second);
 
                 game.makeMove(child.move);
-                self.expandRecursive(game, child.node, acc + child.move.score);
+                self.expandRecursive(game, child, acc + child.move.score);
                 game.undoMove(child.move);
                 return;
             }
 
-            node.child_moves = game.possibleMoves(self.allocator);
-
-            node.child_nodes = self.allocator.alloc(Node, node.child_moves.len) catch unreachable;
-            for (node.child_moves, node.child_nodes) |move, *child| {
-                child.* = Node{ .player = node.player.next() };
+            const next_player = node.player.next();
+            var buf: [Game.max_moves]Move = undefined;
+            const child_moves = game.possibleMoves(&buf);
+            node.children = self.allocator.alloc(Node, child_moves.len) catch unreachable;
+            for (node.children, child_moves) |*child, move| {
+                child.* = Node{ .player = next_player, .move = move };
                 child.score = @divTrunc(move.score, 2) + acc;
-                const next_player = node.player.next();
                 switch (move.decision) {
                     .win => {
                         child.max_result = next_player;
@@ -77,11 +77,11 @@ pub fn SearchTree(Game: type) type {
                     return buf[0..i];
                 }
                 const move = node.bestMove();
-                for (node.child_moves, node.child_nodes) |child_move, child_node| {
-                    if (child_move.eql(move)) {
+                for (node.children) |child| {
+                    if (child.move.eql(move)) {
                         buf[i] = move;
-                        node = child_node;
-                        _ = clone.makeMove(child_move);
+                        node = child;
+                        _ = clone.makeMove(child.move);
                         break;
                     }
                 } else {
@@ -95,11 +95,10 @@ pub fn SearchTree(Game: type) type {
             game.makeMove(move);
             self.acc += move.score;
             var new_root: ?Node = null;
-            for (self.root.child_moves, self.root.child_nodes) |child_move, *child_node| {
-                if (child_move.eql(move)) {
-                    new_root = child_node.*;
-                    child_node.child_moves = &[_]Move{};
-                    child_node.child_nodes = &[_]Node{};
+            for (self.root.children) |*child| {
+                if (child.move.eql(move)) {
+                    new_root = child.*;
+                    child.children = &[_]Node{};
                     break;
                 }
             }
@@ -107,7 +106,7 @@ pub fn SearchTree(Game: type) type {
             if (new_root) |root| {
                 self.root = root;
             } else {
-                self.root = Node{ .player = self.root.player.next() };
+                self.root = Node{ .player = self.root.player.next(), .move = undefined };
                 self.acc = game.scoreBoard();
             }
         }
@@ -117,10 +116,7 @@ pub fn SearchTree(Game: type) type {
         }
 
         pub fn debugPrint(self: Self) void {
-            self.root.debugPrint();
-            for (self.root.child_moves, self.root.child_nodes) |child_move, child_node| {
-                child_node.debugPrintRecursive(child_move, 0);
-            }
+            self.root.debugPrintRecursive(0);
         }
 
         pub fn debugPrintChildren(self: Self) void {

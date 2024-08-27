@@ -2,6 +2,7 @@
 * Raylib GUI
 
 # Zig:
+* rename score to move_score and node_score
 * change Place{x:u8, y:u8} to Place{u8, u8}
 * add randomness to bestMove()
 * fine tune C6.calcScore()

@@ -162,18 +162,18 @@ pub fn undoMove(self: *Self, move: Move) void {
     self.n_moves -= 1;
 }
 
-pub fn possibleMoves(self: *Self, allocator: std.mem.Allocator) []Move {
+pub fn possibleMoves(self: *Self, buf: []Move) []Move {
     const stone = self.nextStone();
 
     var place_buf: [board_size * board_size]Place = undefined;
     if (stone == .black) {
         const scores = self.calcScores(.black);
         const place_list = self.possiblePlaces(.black, scores, &place_buf);
-        return self.selectMoves(.black, scores, place_list, allocator);
+        return self.selectMoves(.black, scores, place_list, buf);
     } else {
         const scores = self.calcScores(.white);
         const place_list = self.possiblePlaces(.white, scores, &place_buf);
-        return self.selectMoves(.white, scores, place_list, allocator);
+        return self.selectMoves(.white, scores, place_list, buf);
     }
 }
 
@@ -189,23 +189,22 @@ fn possiblePlaces(self: Self, comptime player: Stone, scores: Scores, place_list
     return heap.sorted(place_list); // TODO: unsorted
 }
 
-fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: []Place, allocator: std.mem.Allocator) []Move {
+fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: []Place, buf: []Move) []Move {
     var heap = if (player == .black) HeapBlack.init({}) else HeapWhite.init({});
 
     if (scores[place_list[0].y][place_list[0].x] == 0) {
-        var moves = allocator.alloc(Move, 1) catch unreachable;
-        moves[0] = Move{
+        buf[0] = Move{
             .places = sortPlaces(place_list[0], place_list[1]),
             .score = 0,
             .decision = .draw,
         };
-        return moves;
+        return buf[0..1];
     }
 
     for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
         const score1 = scores[p1.y][p1.x];
         if (@abs(score1) > 1024)
-            return winningMove(p1, p1, score1, allocator);
+            return winningMove(p1, p1, score1, buf);
 
         for (i + 1..place_list.len) |j| {
             var score2: i32 = undefined;
@@ -219,7 +218,7 @@ fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: 
             }
 
             if (@abs(score2) > 1024)
-                return winningMove(p1, p2, score2, allocator);
+                return winningMove(p1, p2, score2, buf);
 
             heap.add(Move{
                 .places = sortPlaces(p1, p2),
@@ -227,8 +226,7 @@ fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: 
             });
         }
     }
-    const moves = allocator.alloc(Move, heap.len) catch unreachable;
-    return heap.sorted(moves); // TODO: unsorted
+    return heap.sorted(buf); // TODO: unsorted
 }
 
 fn sortPlaces(p1: Place, p2: Place) [2]Place {
@@ -317,14 +315,13 @@ fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
     return score;
 }
 
-fn winningMove(p1: Place, p2: Place, score: i32, allocator: std.mem.Allocator) []Move {
-    var moves = allocator.alloc(Move, 1) catch unreachable;
-    moves[0] = Move{
+fn winningMove(p1: Place, p2: Place, score: i32, buf: []Move) []Move {
+    buf[0] = Move{
         .places = sortPlaces(p1, p2),
         .decision = .win,
         .score = score,
     };
-    return moves;
+    return buf[0..1];
 }
 
 fn calcScores(self: Self, comptime player: Stone) Scores {
@@ -608,8 +605,8 @@ test "C6" {
     game.printBoard();
     const score = game.scoreBoard();
     print("\nscore = {d} \n", .{score});
-    const moves = game.possibleMoves(std.testing.allocator);
-    defer std.testing.allocator.free(moves);
+    var buf: [Self.max_moves]Move = undefined;
+    const moves = game.possibleMoves(&buf);
     // print("\npossible moves {d}", .{moves.len});
     for (moves) |m| {
         var new_game = game;
@@ -716,9 +713,9 @@ test "possibleMoves" {
     var n_moves: usize = 0;
 
     for (0..10_000) |_| {
-        const moves = game.possibleMoves(std.testing.allocator);
+        var buf: [Self.max_moves]Move = undefined;
+        const moves = game.possibleMoves(&buf);
         n_moves += moves.len;
-        std.testing.allocator.free(moves);
     }
 
     print("\ntime {}ms", .{timer.read() / 1_000_000});

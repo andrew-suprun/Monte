@@ -83,15 +83,10 @@ test "expand" {
     tree.makeMove(&game, move);
 
     move = try game.initMove("i9+i10");
-    move = game.initMoveFromPlaces(.{ C6.Place.init(8, 9), C6.Place.init(8, 8) });
-    print("\n move: ", .{});
-    move.print();
-    print("\nscore board 1: {d}\n", .{game.scoreBoard()});
     tree.makeMove(&game, move);
-    print("score board 2: {d}\n", .{game.scoreBoard()});
-    game.printBoard();
 
     for (0..30) |i| {
+        tree.debugPrint();
         tree.expand(&game);
         print("\n----\n expand {}", .{i});
         tree.debugPrint();
