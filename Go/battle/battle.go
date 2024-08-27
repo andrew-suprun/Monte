@@ -7,10 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 type proc struct {
-	in  io.ReadCloser
+	in  chan string
 	out io.WriteCloser
 }
 
@@ -23,10 +24,38 @@ func main() {
 	}
 	dir := filepath.Dir(os.Args[0])
 	fmt.Println("dir", dir)
-	// procs := [2]proc{startProc(procPath(dir, os.Args[1])), startProc(procPath(dir, os.Args[2]))}
-	// fmt.Println("awaiting:", cmd.Err)
-	// cmd.Wait()
-	// fmt.Println("awaited:", cmd.Err)
+
+	var procs [2]proc
+	for i := range 2 {
+		proc, err := startProc(procPath(dir, os.Args[i+1]))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to start", os.Args[i+1])
+		}
+		procs[i] = proc
+	}
+
+	currentProcId := 0
+	lastTick := time.Now()
+
+	for {
+		select {
+		case msg := <-procs[0].in:
+			handleMessage(msg, 0)
+		case msg := <-procs[1].in:
+			handleMessage(msg, 1)
+			_ = msg
+		default:
+		}
+		if time.Since(lastTick) > time.Second {
+			procs[currentProcId].out.Write([]byte("best-move"))
+			currentProcId = 1 - currentProcId
+		}
+	}
+}
+
+func handleMessage(msg string, procId int) {
+	// TODO: update server to handle 'reset-game' command
+	// TODO: update server inform about game terminal state
 }
 
 func procPath(dir, name string) string {
@@ -36,12 +65,15 @@ func procPath(dir, name string) string {
 	return filepath.Join(dir, name)
 }
 
-func startProc(path string) proc {
-	cmd := exec.Command("./c6")
-	fmt.Println("before start:", cmd.Err)
+func startProc(path string) (proc, error) {
+	cmd := exec.Command(path)
+	if cmd.Err != nil {
+		return proc{}, cmd.Err
+	}
 	writer, _ := cmd.StdinPipe()
 	reader, _ := cmd.StdoutPipe()
-	go read(reader)
+	ch := make(chan string, 20)
+	go read(reader, ch)
 	cmd.Start()
 	fmt.Println("after start:", cmd.Err)
 	in := bufio.NewReader(os.Stdin)
@@ -53,10 +85,10 @@ func startProc(path string) proc {
 			break
 		}
 	}
-	return proc{reader, writer}
+	return proc{in: ch, out: writer}, nil
 }
 
-func read(reader io.ReadCloser) {
+func read(reader io.ReadCloser, ch chan string) {
 	bufReader := bufio.NewReader(reader)
 	for {
 		line, err := bufReader.ReadString('\n')
@@ -64,8 +96,9 @@ func read(reader io.ReadCloser) {
 			break
 		}
 		if err != nil {
-			fmt.Println("ERROR: ", err)
+			fmt.Fprintln(os.Stderr, "ERROR: ", err)
+			break
 		}
-		fmt.Println("read: ", line)
+		ch <- line
 	}
 }
