@@ -8,7 +8,7 @@ pub fn SearchTree(Game: type) type {
 
     return struct {
         root: Node,
-        acc: i32 = Game.empty_board_score,
+        acc: i32 = 0,
         allocator: Allocator,
 
         const Self = @This();
@@ -16,7 +16,7 @@ pub fn SearchTree(Game: type) type {
 
         pub fn init(allocator: Allocator) Self {
             return Self{
-                .root = Node{},
+                .root = Node{ .player = .second },
                 .allocator = allocator,
             };
         }
@@ -34,7 +34,7 @@ pub fn SearchTree(Game: type) type {
             defer node.updateStats();
 
             if (node.child_moves.len > 0) {
-                const child = if (node.child_moves[0].player == .first)
+                const child = if (node.player == .second)
                     node.selectChild(.first)
                 else
                     node.selectChild(.second);
@@ -49,11 +49,18 @@ pub fn SearchTree(Game: type) type {
 
             node.child_nodes = self.allocator.alloc(Node, node.child_moves.len) catch unreachable;
             for (node.child_moves, node.child_nodes) |move, *child| {
-                child.* = Node{};
+                child.* = Node{ .player = node.player.next() };
                 child.score = @divTrunc(move.score, 2) + acc;
-                if (move.winner) |w| {
-                    child.max_result = w;
-                    child.min_result = w;
+                const next_player = node.player.next();
+                switch (move.decision) {
+                    .win => {
+                        child.max_result = next_player;
+                        child.min_result = next_player;
+                    },
+                    .draw => {
+                        if (node.player == .first) child.max_result = .none else child.min_result = .none;
+                    },
+                    else => {},
                 }
             }
         }
@@ -84,7 +91,8 @@ pub fn SearchTree(Game: type) type {
             return buf;
         }
 
-        pub fn makeMove(self: *Self, move: Move) void {
+        pub fn makeMove(self: *Self, game: *Game, move: Move) void {
+            game.makeMove(move);
             self.acc += move.score;
             var new_root: ?Node = null;
             for (self.root.child_moves, self.root.child_nodes) |child_move, *child_node| {
@@ -99,7 +107,8 @@ pub fn SearchTree(Game: type) type {
             if (new_root) |root| {
                 self.root = root;
             } else {
-                self.root = Node{};
+                self.root = Node{ .player = self.root.player.next() };
+                self.acc = game.scoreBoard();
             }
         }
 

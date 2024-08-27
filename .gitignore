@@ -5,4 +5,5 @@ zig-out
 .vscode
 playground.*
 Monte
-/c6*
+Zig/c6*
+Go/bin

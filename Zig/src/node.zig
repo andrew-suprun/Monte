@@ -2,11 +2,45 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
+pub const Player = enum {
+    none,
+    first,
+    second,
+
+    pub fn next(self: Player) Player {
+        return if (self == .first) .second else .first;
+    }
+
+    fn max(self: Player, other: Player) Player {
+        switch (self) {
+            .none => if (other == .first) return .first else return .none,
+            .first => return self,
+            .second => return other,
+        }
+    }
+
+    fn min(self: Player, other: Player) Player {
+        switch (self) {
+            .none => if (other == .second) return .second else return .none,
+            .first => return other,
+            .second => return self,
+        }
+    }
+
+    pub fn str(self: @This()) []const u8 {
+        return switch (self) {
+            .none => "=",
+            .first => "X",
+            .second => "O",
+        };
+    }
+};
+
 pub fn Node(Game: type) type {
     const Move = Game.Move;
-    const Player = Game.Player;
 
     return struct {
+        player: Player,
         child_moves: []Move = &[_]Move{},
         child_nodes: []Self = &[_]Self{},
         score: i32 = 0,
@@ -27,10 +61,9 @@ pub fn Node(Game: type) type {
         pub fn bestMove(self: Self) Move {
             var selected_node: *Self = &self.child_nodes[0];
             var idx: usize = 0;
-            const player = self.child_moves[0].player;
             for (self.child_nodes[1..], 1..) |*child_node, i| {
                 var score = child_node.score;
-                if (player == .first) {
+                if (self.player == .second) {
                     if (child_node.max_result == .second) {
                         if (child_node.n_extentions > selected_node.n_extentions) {
                             selected_node = child_node;
@@ -93,7 +126,7 @@ pub fn Node(Game: type) type {
 
         pub fn updateStats(self: *Self) void {
             self.n_extentions += 1;
-            if (self.child_moves[0].player == .first) {
+            if (self.player == .second) {
                 self.score = std.math.minInt(i32);
                 self.max_result = .second;
                 self.min_result = .second;
@@ -121,12 +154,12 @@ pub fn Node(Game: type) type {
         pub fn debugSelfCheckRecursive(self: Self, game: Game) void {
             if (self.child_nodes.len == 0) return;
 
-            const player = self.child_moves[0].player;
+            const player = self.player;
             var max: Player = undefined;
             var min: Player = undefined;
             var score: i32 = undefined;
 
-            if (player == .first) {
+            if (player == .second) {
                 score = std.math.minInt(i32);
                 max = .second;
                 min = .second;
@@ -181,6 +214,7 @@ pub fn Node(Game: type) type {
         }
 
         pub fn debugPrint(self: Self) void {
+            print(" | player: {s}", .{self.player.str()});
             print(" | score: {d}", .{self.score});
             print(" | min: {s}", .{self.min_result.str()});
             print(" | max: {s}", .{self.max_result.str()});

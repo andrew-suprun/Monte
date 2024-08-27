@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 
 const C6 = @import("Connect6.zig");
 const SearchTree = @import("tree.zig").SearchTree(C6);
-const Player = C6.Player;
+const Player = @import("node.zig").Player;
 const ArrayList = std.ArrayList([]u8);
 const Isolate = @import("isolate.zig").Isolate(*ArrayList);
 
@@ -111,14 +111,13 @@ const Monte = struct {
             .tty = try vaxis.Tty.init(),
             .vx = try vaxis.init(allocator, .{}),
             .engine = SearchTree.init(allocator),
-            .game = C6.init(),
+            .game = C6{},
             .engines = engines,
         };
         result.board[9][9] = .first;
         const place = C6.Place.init(9, 9);
         const move = try result.game.initMove("j10+j10");
         result.engine.makeMove(move);
-        result.game.makeMove(move);
         result.highlighted_places[0] = place;
         result.highlighted_places[1] = place;
         return result;
@@ -185,10 +184,9 @@ const Monte = struct {
                         const p2 = self.highlighted_places[3];
                         const move = self.game.initMoveFromPlaces(.{ p1, p2 });
                         self.engine.makeMove(move);
-                        self.game.makeMove(move);
                         var buf: [8]u8 = undefined;
                         print("\n--------\nmove {s}", .{move.str(&buf)});
-                        self.game.printBoard(move);
+                        self.game.printBoard();
                         self.winner = self.engineMove();
                     }
                 }
@@ -218,7 +216,6 @@ const Monte = struct {
         }
         const move = self.engine.bestMove();
         self.engine.makeMove(move);
-        self.game.makeMove(move);
         self.n_highlighted_places = 2;
         self.highlighted_places[0] = move.places[0];
         self.highlighted_places[1] = move.places[1];
@@ -226,7 +223,7 @@ const Monte = struct {
         self.board[move.places[1].y][move.places[1].x] = move.player;
         var buf: [8]u8 = undefined;
         print("\n--------\nmove {s}", .{move.str(&buf)});
-        self.game.printBoard(move);
+        self.game.printBoard();
         self.engine.debugPrintChildren();
         return move.winner;
     }

@@ -5,7 +5,7 @@ const vaxis = @import("vaxis");
 const C6 = @import("Connect6.zig");
 const SearchTree = @import("tree.zig").SearchTree(C6);
 
-const Player = C6.Player;
+const Player = @import("node.zig").Player;
 
 pub const panic = vaxis.panic_handler;
 
@@ -28,7 +28,7 @@ const Monte = struct {
     board: [C6.board_size][C6.board_size]Player = [1][C6.board_size]Player{[1]Player{.none} ** C6.board_size} ** C6.board_size,
     highlighted_places: [4]C6.Place = undefined,
     n_highlighted_places: usize = 2,
-    winner: ?Player = null,
+    decision: C6.Decision = .nonterminal,
 
     pub fn init(allocator: std.mem.Allocator) !Monte {
         var result = Monte{
@@ -36,12 +36,13 @@ const Monte = struct {
             .tty = try vaxis.Tty.init(),
             .vx = try vaxis.init(allocator, .{}),
             .engine = SearchTree.init(allocator),
-            .game = C6.init(),
+            .game = C6{},
         };
-        result.board[9][9] = .second;
+        result.board[9][9] = .first;
         const place = C6.Place.init(9, 9);
         result.highlighted_places[0] = place;
         result.highlighted_places[1] = place;
+        result.engine.makeMove(&result.game, try result.game.initMove("j10+j10"));
         return result;
     }
 
@@ -84,7 +85,7 @@ const Monte = struct {
     }
 
     pub fn update(self: *Monte, event: Event) !void {
-        if (self.winner) |_| {
+        if (self.decision != .nonterminal) {
             switch (event) {
                 .key_press => |key| {
                     if (key.matches('c', .{ .ctrl = true }))
@@ -103,12 +104,11 @@ const Monte = struct {
                         const p1 = self.highlighted_places[2];
                         const p2 = self.highlighted_places[3];
                         const move = self.game.initMoveFromPlaces(.{ p1, p2 });
-                        self.engine.makeMove(move);
-                        self.game.makeMove(move);
+                        self.engine.makeMove(&self.game, move);
                         var buf: [8]u8 = undefined;
                         print("\n--------\nmove {s}", .{move.str(&buf)});
-                        self.game.printBoard(move);
-                        self.winner = self.engineMove();
+                        self.game.printBoard();
+                        self.decision = self.engineMove();
                     }
                 }
                 if (key.matches(vaxis.Key.escape, .{})) {
@@ -128,7 +128,7 @@ const Monte = struct {
         }
     }
 
-    pub fn engineMove(self: *Monte) ?Player {
+    pub fn engineMove(self: *Monte) C6.Decision {
         for (0..10_000) |_| {
             if (self.engine.root.min_result == self.engine.root.max_result) {
                 break;
@@ -136,18 +136,17 @@ const Monte = struct {
             self.engine.expand(&self.game);
         }
         const move = self.engine.bestMove();
-        self.engine.makeMove(move);
-        self.game.makeMove(move);
+        self.engine.makeMove(&self.game, move);
         self.n_highlighted_places = 2;
         self.highlighted_places[0] = move.places[0];
         self.highlighted_places[1] = move.places[1];
-        self.board[move.places[0].y][move.places[0].x] = move.player;
-        self.board[move.places[1].y][move.places[1].x] = move.player;
+        self.board[move.places[0].y][move.places[0].x] = .first;
+        self.board[move.places[1].y][move.places[1].x] = .first;
         var buf: [8]u8 = undefined;
         print("\n--------\nmove {s}", .{move.str(&buf)});
-        self.game.printBoard(move);
+        self.game.printBoard();
         self.engine.debugPrintChildren();
-        return move.winner;
+        return move.decision;
     }
 
     pub fn draw(self: *Monte, allocator: std.mem.Allocator) void {
@@ -180,7 +179,7 @@ const Monte = struct {
                 if (self.board[y][x] != .none) break :mouse_blk;
                 if (self.n_highlighted_places == 4) break :mouse_blk;
 
-                self.board[y][x] = .first;
+                self.board[y][x] = .second;
                 self.highlighted_places[self.n_highlighted_places] = C6.Place.init(x, y);
                 self.n_highlighted_places += 1;
             }
@@ -201,14 +200,14 @@ const Monte = struct {
 
                 switch (self.board[y][x]) {
                     .first => if (highlight) {
-                        printSegment(win, "O", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "O", style_white, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "X", style_white, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     .second => if (highlight) {
-                        printSegment(win, "X", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black_highlight, start_x + 2 + x * 2, start_y + 1 + y);
                     } else {
-                        printSegment(win, "X", style_black, start_x + 2 + x * 2, start_y + 1 + y);
+                        printSegment(win, "O", style_black, start_x + 2 + x * 2, start_y + 1 + y);
                     },
                     // .white => if (place1.x == x and place1.y == y or place2.x == x and place2.y == y) print("─@", .{}) else print("─O", .{}),
                     else => {
@@ -238,12 +237,8 @@ const Monte = struct {
                 }
             }
         }
-        if (self.winner) |w| {
-            switch (w) {
-                .first => printSegment(win, "O Won", style_white_highlight, start_x + 2, start_y + 21),
-                .second => printSegment(win, "X Won", style_black_highlight, start_x + 2, start_y + 21),
-                else => {},
-            }
+        if (self.decision != .nonterminal) {
+            printSegment(win, "Game Complete", style_black_highlight, start_x + 2, start_y + 21);
         }
     }
 

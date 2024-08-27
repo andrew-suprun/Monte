@@ -1,4 +1,4 @@
-board: [board_size][board_size]Player = [1][board_size]Player{[1]Player{.none} ** board_size} ** board_size,
+board: [board_size][board_size]Stone = [1][board_size]Stone{[1]Stone{.none} ** board_size} ** board_size,
 n_moves: usize = 0,
 
 const std = @import("std");
@@ -8,42 +8,28 @@ const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 pub const board_size: comptime_int = 19;
 pub const max_moves: comptime_int = if (debug) 6 else 200;
 pub const max_places: comptime_int = if (debug) 6 else 200;
-pub const empty_board_score = -24;
 
-pub const Player = enum(u8) {
-    none = 0x00,
-    first = 0x01,
-    second = 0x10,
+const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
-    pub fn max(self: Player, other: Player) Player {
-        switch (self) {
-            .none => if (other == .first) return .first else return .none,
-            .first => return self,
-            .second => return other,
-        }
-    }
+pub const Decision = enum(u2) {
+    nonterminal,
+    win,
+    loss,
+    draw,
 
-    pub fn min(self: Player, other: Player) Player {
-        switch (self) {
-            .none => if (other == .second) return .second else return .none,
-            .first => return other,
-            .second => return self,
-        }
-    }
-
-    pub fn str(self: @This()) []const u8 {
+    fn str(self: @This()) []const u8 {
         return switch (self) {
-            .none => "=",
-            .first => "O",
-            .second => "X",
+            .nonterminal => "nonterminal",
+            .win => "win",
+            .loss => "loss",
+            .draw => "draw",
         };
     }
 };
 
 pub const Move = struct {
+    decision: Decision = .nonterminal,
     places: [2]Place,
-    player: Player,
-    winner: ?Player = null,
     score: i32,
 
     pub fn eql(self: @This(), other: @This()) bool {
@@ -64,10 +50,9 @@ pub const Move = struct {
     pub fn print(self: @This()) void {
         var buf: [8]u8 = undefined;
         const move_str = self.str(&buf);
-        std.debug.print("[{s}, player: {s}, winner: {s}, score: {d}]", .{
+        std.debug.print("[{s}, decision: {s}, score: {d}]", .{
             move_str,
-            self.player.str(),
-            if (self.winner) |w| w.str() else "-",
+            self.decision.str(),
             self.score,
         });
     }
@@ -108,12 +93,6 @@ pub const Place = struct {
 const Self = @This();
 const Scores = [board_size][board_size]i32;
 
-pub fn init() Self {
-    var self = Self{};
-    self.board[board_size / 2][board_size / 2] = .second;
-    return self;
-}
-
 pub fn initMove(self: *Self, note: []const u8) !Move {
     var place_tokens = std.mem.tokenizeScalar(u8, note, '+');
     const places: [2]Place = .{
@@ -124,28 +103,26 @@ pub fn initMove(self: *Self, note: []const u8) !Move {
 }
 
 pub fn initMoveFromPlaces(self: *Self, places: [2]Place) Move {
-    const player = self.nextPlayer();
-    const score1 = if (player == .first)
-        self.ratePlace(places[0], .first)
+    const player = self.nextStone();
+    const score1 = if (player == .black)
+        self.ratePlace(places[0], .black)
     else
-        self.ratePlace(places[0], .second);
+        self.ratePlace(places[0], .white);
     const score2 = if (!places[0].eql(places[1])) blk: {
         self.board[places[0].y][places[0].x] = player;
         defer self.board[places[0].y][places[0].x] = .none;
 
-        break :blk if (player == .first)
-            self.ratePlace(places[1], .first)
+        break :blk if (player == .black)
+            self.ratePlace(places[1], .black)
         else
-            self.ratePlace(places[1], .second);
+            self.ratePlace(places[1], .white);
     } else 0;
-    var winner: ?Player = null;
-    if (score1 + score2 > 1024) winner = .first;
-    if (score1 + score2 < -1024) winner = .second;
+    var decision: Decision = .nonterminal;
+    if (@abs(score1 + score2) > 1024) decision = .win;
     return Move{
         .places = sortPlaces(places[0], places[1]),
-        .player = player,
         .score = score1 + score2,
-        .winner = winner,
+        .decision = decision,
     };
 }
 
@@ -167,14 +144,12 @@ fn parseToken(maybe_token: ?[]const u8) !Place {
 }
 
 pub fn makeMove(self: *Self, move: Move) void {
-    const player = move.player;
-
+    const stone = self.nextStone();
     const p1 = move.places[0];
     const p2 = move.places[1];
 
-    self.board[p1.y][p1.x] = player;
-    self.board[p2.y][p2.x] = player;
-
+    self.board[p1.y][p1.x] = stone;
+    self.board[p2.y][p2.x] = stone;
     self.n_moves += 1;
 }
 
@@ -184,27 +159,26 @@ pub fn undoMove(self: *Self, move: Move) void {
 
     self.board[p1.y][p1.x] = .none;
     self.board[p2.y][p2.x] = .none;
-
     self.n_moves -= 1;
 }
 
 pub fn possibleMoves(self: *Self, allocator: std.mem.Allocator) []Move {
-    const player = self.nextPlayer();
+    const stone = self.nextStone();
 
     var place_buf: [board_size * board_size]Place = undefined;
-    if (player == .first) {
-        const scores = self.calcScores(.first);
-        const place_list = self.possiblePlaces(.first, scores, &place_buf);
-        return self.selectMoves(.first, scores, place_list, allocator);
+    if (stone == .black) {
+        const scores = self.calcScores(.black);
+        const place_list = self.possiblePlaces(.black, scores, &place_buf);
+        return self.selectMoves(.black, scores, place_list, allocator);
     } else {
-        const scores = self.calcScores(.second);
-        const place_list = self.possiblePlaces(.second, scores, &place_buf);
-        return self.selectMoves(.second, scores, place_list, allocator);
+        const scores = self.calcScores(.white);
+        const place_list = self.possiblePlaces(.white, scores, &place_buf);
+        return self.selectMoves(.white, scores, place_list, allocator);
     }
 }
 
-fn possiblePlaces(self: Self, comptime player: Player, scores: Scores, place_list: []Place) []Place {
-    var heap = if (player == .first) HeapPlaceWhite.init(scores) else HeapPlaceBlack.init(scores);
+fn possiblePlaces(self: Self, comptime player: Stone, scores: Scores, place_list: []Place) []Place {
+    var heap = if (player == .black) HeapPlaceBlack.init(scores) else HeapPlaceWhite.init(scores);
     for (0..board_size) |y| {
         for (0..board_size) |x| {
             if (self.board[y][x] == .none) {
@@ -215,26 +189,23 @@ fn possiblePlaces(self: Self, comptime player: Player, scores: Scores, place_lis
     return heap.sorted(place_list); // TODO: unsorted
 }
 
-fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list: []Place, allocator: std.mem.Allocator) []Move {
-    var heap = if (player == .first) HeapWhite.init({}) else HeapBlack.init({});
+fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: []Place, allocator: std.mem.Allocator) []Move {
+    var heap = if (player == .black) HeapBlack.init({}) else HeapWhite.init({});
 
     if (scores[place_list[0].y][place_list[0].x] == 0) {
         var moves = allocator.alloc(Move, 1) catch unreachable;
         moves[0] = Move{
             .places = sortPlaces(place_list[0], place_list[1]),
-            .player = player,
             .score = 0,
-            .winner = .none,
+            .decision = .draw,
         };
         return moves;
     }
 
     for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
         const score1 = scores[p1.y][p1.x];
-        if (score1 > 1024)
-            return winningMove(p1, p1, .first, score1, allocator)
-        else if (score1 < -1024)
-            return winningMove(p1, p1, .second, score1, allocator);
+        if (@abs(score1) > 1024)
+            return winningMove(p1, p1, score1, allocator);
 
         for (i + 1..place_list.len) |j| {
             var score2: i32 = undefined;
@@ -247,14 +218,11 @@ fn selectMoves(self: *Self, comptime player: Player, scores: Scores, place_list:
                 score2 = scores[p2.y][p2.x];
             }
 
-            if (score2 > 1024)
-                return winningMove(p1, p2, .first, score2, allocator)
-            else if (score2 < -1024)
-                return winningMove(p1, p2, .second, score2, allocator);
+            if (@abs(score2) > 1024)
+                return winningMove(p1, p2, score2, allocator);
 
             heap.add(Move{
                 .places = sortPlaces(p1, p2),
-                .player = player,
                 .score = score1 + score2,
             });
         }
@@ -270,7 +238,7 @@ fn sortPlaces(p1: Place, p2: Place) [2]Place {
         [2]Place{ p2, p1 };
 }
 
-fn ratePlace(self: Self, place: Place, comptime player: Player) i32 {
+fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
     const x = place.x;
     const y = place.y;
     var score: i32 = 0;
@@ -349,96 +317,95 @@ fn ratePlace(self: Self, place: Place, comptime player: Player) i32 {
     return score;
 }
 
-fn winningMove(p1: Place, p2: Place, player: Player, score: i32, allocator: std.mem.Allocator) []Move {
+fn winningMove(p1: Place, p2: Place, score: i32, allocator: std.mem.Allocator) []Move {
     var moves = allocator.alloc(Move, 1) catch unreachable;
     moves[0] = Move{
         .places = sortPlaces(p1, p2),
-        .player = player,
-        .winner = player,
+        .decision = .win,
         .score = score,
     };
     return moves;
 }
 
-fn calcScores(self: Self, comptime player: Player) Scores {
+fn calcScores(self: Self, comptime player: Stone) Scores {
     var scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size;
 
     for (0..board_size) |a| {
-        var hPlayers: i32 = @intFromEnum(self.board[a][0]);
-        var vPlayers: i32 = @intFromEnum(self.board[0][a]);
+        var hStones: i32 = @intFromEnum(self.board[a][0]);
+        var vStones: i32 = @intFromEnum(self.board[0][a]);
         for (1..5) |b| {
-            hPlayers += @intFromEnum(self.board[a][b]);
-            vPlayers += @intFromEnum(self.board[b][a]);
+            hStones += @intFromEnum(self.board[a][b]);
+            vStones += @intFromEnum(self.board[b][a]);
         }
         for (0..board_size - 5) |b| {
-            hPlayers += @intFromEnum(self.board[a][b + 5]);
-            vPlayers += @intFromEnum(self.board[b + 5][a]);
-            const eScore = calcScore(player, hPlayers);
-            const sScore = calcScore(player, vPlayers);
+            hStones += @intFromEnum(self.board[a][b + 5]);
+            vStones += @intFromEnum(self.board[b + 5][a]);
+            const eScore = calcScore(player, hStones);
+            const sScore = calcScore(player, vStones);
             inline for (0..6) |c| {
                 scores[a][b + c] += eScore;
                 scores[b + c][a] += sScore;
             }
-            hPlayers -= @intFromEnum(self.board[a][b]);
-            vPlayers -= @intFromEnum(self.board[b][a]);
+            hStones -= @intFromEnum(self.board[a][b]);
+            vStones -= @intFromEnum(self.board[b][a]);
         }
     }
 
     for (1..board_size - 5) |a| {
-        var swPlayers: i32 = @intFromEnum(self.board[a][0]);
-        var nePlayers: i32 = @intFromEnum(self.board[0][a]);
-        var nwPlayers: i32 = @intFromEnum(self.board[board_size - 1 - a][0]);
-        var sePlayers: i32 = @intFromEnum(self.board[a][board_size - 1]);
+        var swStones: i32 = @intFromEnum(self.board[a][0]);
+        var neStones: i32 = @intFromEnum(self.board[0][a]);
+        var nwStones: i32 = @intFromEnum(self.board[board_size - 1 - a][0]);
+        var seStones: i32 = @intFromEnum(self.board[a][board_size - 1]);
         for (1..5) |b| {
-            swPlayers += @intFromEnum(self.board[a + b][b]);
-            nePlayers += @intFromEnum(self.board[b][a + b]);
-            nwPlayers += @intFromEnum(self.board[board_size - 1 - a - b][b]);
-            sePlayers += @intFromEnum(self.board[a + b][board_size - 1 - b]);
+            swStones += @intFromEnum(self.board[a + b][b]);
+            neStones += @intFromEnum(self.board[b][a + b]);
+            nwStones += @intFromEnum(self.board[board_size - 1 - a - b][b]);
+            seStones += @intFromEnum(self.board[a + b][board_size - 1 - b]);
         }
 
         for (0..board_size - 5 - a) |b| {
-            swPlayers += @intFromEnum(self.board[a + b + 5][b + 5]);
-            nePlayers += @intFromEnum(self.board[b + 5][a + b + 5]);
-            nwPlayers += @intFromEnum(self.board[board_size - 6 - a - b][b + 5]);
-            sePlayers += @intFromEnum(self.board[a + b + 5][board_size - 6 - b]);
-            const swScore = calcScore(player, swPlayers);
-            const neScore = calcScore(player, nePlayers);
-            const nwScore = calcScore(player, nwPlayers);
-            const seScore = calcScore(player, sePlayers);
+            swStones += @intFromEnum(self.board[a + b + 5][b + 5]);
+            neStones += @intFromEnum(self.board[b + 5][a + b + 5]);
+            nwStones += @intFromEnum(self.board[board_size - 6 - a - b][b + 5]);
+            seStones += @intFromEnum(self.board[a + b + 5][board_size - 6 - b]);
+            const swScore = calcScore(player, swStones);
+            const neScore = calcScore(player, neStones);
+            const nwScore = calcScore(player, nwStones);
+            const seScore = calcScore(player, seStones);
             inline for (0..6) |c| {
                 scores[a + b + c][b + c] += swScore;
                 scores[b + c][a + b + c] += neScore;
                 scores[board_size - 1 - a - b - c][b + c] += nwScore;
                 scores[a + b + c][board_size - 1 - b - c] += seScore;
             }
-            swPlayers -= @intFromEnum(self.board[a + b][b]);
-            nePlayers -= @intFromEnum(self.board[b][a + b]);
-            nwPlayers -= @intFromEnum(self.board[board_size - 1 - a - b][b]);
-            sePlayers -= @intFromEnum(self.board[a + b][board_size - 1 - b]);
+            swStones -= @intFromEnum(self.board[a + b][b]);
+            neStones -= @intFromEnum(self.board[b][a + b]);
+            nwStones -= @intFromEnum(self.board[board_size - 1 - a - b][b]);
+            seStones -= @intFromEnum(self.board[a + b][board_size - 1 - b]);
         }
     }
-    var nwsePlayers: i32 = @intFromEnum(self.board[0][0]);
-    var neswPlayers: i32 = @intFromEnum(self.board[0][board_size - 1]);
+    var nwseStones: i32 = @intFromEnum(self.board[0][0]);
+    var neswStones: i32 = @intFromEnum(self.board[0][board_size - 1]);
     for (1..5) |a| {
-        nwsePlayers += @intFromEnum(self.board[a][a]);
-        neswPlayers += @intFromEnum(self.board[a][board_size - 1 - a]);
+        nwseStones += @intFromEnum(self.board[a][a]);
+        neswStones += @intFromEnum(self.board[a][board_size - 1 - a]);
     }
     for (0..board_size - 5) |b| {
-        nwsePlayers += @intFromEnum(self.board[b + 5][b + 5]);
-        neswPlayers += @intFromEnum(self.board[b + 5][board_size - 6 - b]);
-        const nwseScore = calcScore(player, nwsePlayers);
-        const neswScore = calcScore(player, neswPlayers);
+        nwseStones += @intFromEnum(self.board[b + 5][b + 5]);
+        neswStones += @intFromEnum(self.board[b + 5][board_size - 6 - b]);
+        const nwseScore = calcScore(player, nwseStones);
+        const neswScore = calcScore(player, neswStones);
         inline for (0..6) |c| {
             scores[b + c][b + c] += nwseScore;
             scores[b + c][board_size - 1 - b - c] += neswScore;
         }
-        nwsePlayers -= @intFromEnum(self.board[b][b]);
-        neswPlayers -= @intFromEnum(self.board[b][board_size - 1 - b]);
+        nwseStones -= @intFromEnum(self.board[b][b]);
+        neswStones -= @intFromEnum(self.board[b][board_size - 1 - b]);
     }
     return scores;
 }
 
-const HeapWhite = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
+const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
 fn cmpBlack(_: void, a: Move, b: Move) bool {
     if (a.score < b.score) return true;
     if (a.score > b.score) return false;
@@ -447,25 +414,25 @@ fn cmpBlack(_: void, a: Move, b: Move) bool {
     return a.places[1].less(b.places[1]);
 }
 
-const HeapBlack = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
+const HeapWhite = @import("heap.zig").Heap(Move, void, cmpWhite, max_moves);
 fn cmpWhite(_: void, a: Move, b: Move) bool {
     return cmpBlack({}, b, a);
 }
 
-const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_places);
+const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_places);
 fn cmpPlaceBlack(scores: Scores, a: Place, b: Place) bool {
     if (scores[a.y][a.x] < scores[b.y][b.x]) return true;
     if (scores[a.y][a.x] > scores[b.y][b.x]) return false;
     return a.less(b);
 }
 
-const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_places);
+const HeapPlaceWhite = @import("heap.zig").Heap(Place, Scores, cmpPlaceWhite, max_places);
 fn cmpPlaceWhite(scores: Scores, a: Place, b: Place) bool {
     return cmpPlaceBlack(scores, b, a);
 }
 
-inline fn nextPlayer(self: Self) Player {
-    return if (self.n_moves % 2 == 0) .first else .second;
+inline fn nextStone(self: Self) Stone {
+    return if (self.n_moves % 2 == 0) .black else .white;
 }
 
 const one_player = 1;
@@ -475,8 +442,8 @@ const four_players = 60;
 const five_players = 120;
 const six_players = 2048;
 
-fn calcScore(comptime player: Player, stones: i32) i32 {
-    return if (player == .first)
+fn calcScore(comptime player: Stone, stones: i32) i32 {
+    return if (player == .black)
         switch (stones) {
             0x00 => one_player,
             0x01 => two_players - one_player,
@@ -507,8 +474,7 @@ fn calcScore(comptime player: Player, stones: i32) i32 {
     };
 }
 
-// TODO unpub
-pub fn debugScoreBoard(self: Self) i32 {
+pub fn scoreBoard(self: Self) i32 {
     var result: i32 = 0;
 
     for (0..board_size) |a| {
@@ -588,29 +554,37 @@ fn debugRate(players: i32) i32 {
     };
 }
 
-pub fn printBoard(self: Self, move: Move) void {
-    const place1 = move.places[0];
-    const place2 = move.places[1];
+pub fn printBoard(self: Self) void {
     print("\n  ", .{});
     for (0..board_size) |i| {
         print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
     }
-
     for (0..board_size) |y| {
         print("\n{:2}", .{board_size - y});
         for (0..board_size) |x| {
-            const place = Place.init(x, y);
-            switch (self.board[y][x]) {
-                .first => if (place.eql(place1) or place.eql(place2)) print("─@", .{}) else print("─O", .{}),
-                .second => if (place.eql(place1) or place.eql(place2)) print("─#", .{}) else print("─X", .{}),
-                else => {
-                    if (y == 0) {
-                        if (x == 0) print(" ┌", .{}) else if (x == board_size - 1) print("─┐", .{}) else print("─┬", .{});
-                    } else if (y == board_size - 1)
-                        if (x == 0) print(" └", .{}) else if (x == board_size - 1) print("─┘", .{}) else print("─┴", .{})
-                    else if (x == 0) print(" ├", .{}) else if (x == board_size - 1) print("─┤", .{}) else print("─┼", .{});
+            const piece = switch (self.board[y][x]) {
+                .black => "─X",
+                .white => "─O",
+                .none => switch (y) {
+                    0 => switch (x) {
+                        0 => " ┌",
+                        board_size - 1 => "─┐",
+                        else => "─┬",
+                    },
+                    board_size - 1 => switch (x) {
+                        0 => " └",
+                        board_size - 1 => "─┘",
+                        else => "─┴",
+                    },
+                    else => switch (x) {
+                        0 => " ├",
+                        board_size - 1 => "─┤",
+                        else => "─┼",
+                    },
                 },
-            }
+            };
+
+            print("{s}", .{piece});
         }
         print(" {:2}", .{board_size - y});
     }
@@ -622,16 +596,17 @@ pub fn printBoard(self: Self, move: Move) void {
 }
 
 test "Move.str" {
-    var move = Move{ .places = .{ .{ .x = 0, .y = 18 }, .{ .x = 9, .y = 9 } }, .score = 0, .player = .first };
+    var move = Move{ .places = .{ .{ .x = 0, .y = 18 }, .{ .x = 9, .y = 9 } }, .score = 0 };
     var buf: [7]u8 = undefined;
     const move_str = move.str(&buf);
     try std.testing.expectEqualSlices(u8, "a1+j10", move_str);
 }
 
 test "C6" {
-    var game = Self.init();
-    game.printBoard(undefined);
-    const score = game.debugScoreBoard();
+    var game = Self{};
+    game.makeMove(try game.initMove("j10+j10"));
+    game.printBoard();
+    const score = game.scoreBoard();
     print("\nscore = {d} \n", .{score});
     const moves = game.possibleMoves(std.testing.allocator);
     defer std.testing.allocator.free(moves);
@@ -641,7 +616,7 @@ test "C6" {
         new_game.makeMove(m);
         // print("\n\n", .{});
         // m.print();
-        // new_game.printBoard(m);
+        // new_game.printBoard();
     }
 }
 
@@ -654,8 +629,8 @@ test "scoreBoard" {
     var game = Self{};
     for (0..10_000) |_| {
         for (0..100) |_| {
-            game.board[9][9] = if (rng.next() % 2 == 0) .first else .second;
-            result += game.debugScoreBoard();
+            game.board[9][9] = if (rng.next() % 2 == 0) .black else .white;
+            result += game.scoreBoard();
         }
     }
     const nanos = start.read();
@@ -669,7 +644,7 @@ test "ratePlace" {
     var game = Self{};
     for (0..10_000) |_| {
         for (0..100) |_| {
-            const r = if (rng.next() % 2 == 0) game.ratePlace(Place.init(9, 9), .first) else game.ratePlace(Place.init(9, 9), .second);
+            const r = if (rng.next() % 2 == 0) game.ratePlace(Place.init(9, 9), .black) else game.ratePlace(Place.init(9, 9), .white);
             result += r;
         }
     }
@@ -677,7 +652,7 @@ test "ratePlace" {
     print("\ntime {d}ms result {d}\n", .{ nanos / 1_000_000, result });
 }
 
-test "placePlayer" {
+test "placeStone" {
     var game = Self{};
 
     var rng = Prng.init(1);
@@ -685,11 +660,11 @@ test "placePlayer" {
     for (1..100) |_| {
         const x: usize = @intCast(rng.next() % board_size);
         const y: usize = @intCast(rng.next() % board_size);
-        const player: Player = if (rng.next() % 2 == 0) .first else .second;
+        const player: Stone = if (rng.next() % 2 == 0) .black else .white;
         if (game.board[y][x] != .none) continue;
-        score += if (player == .first) game.ratePlace(Place.init(x, y), .first) else game.ratePlace(Place.init(x, y), .second);
+        score += if (player == .black) game.ratePlace(Place.init(x, y), .black) else game.ratePlace(Place.init(x, y), .white);
         game.board[y][x] = player;
-        const score2 = game.debugScoreBoard();
+        const score2 = game.scoreBoard();
         try std.testing.expectEqual(score2, score);
     }
 }
@@ -702,12 +677,12 @@ test "calcScores" {
     for (1..100) |_| {
         const x: usize = @intCast(rng.next() % board_size);
         const y: usize = @intCast(rng.next() % board_size);
-        const player: Player = if (rng.next() % 2 == 0) .first else .second;
+        const player: Stone = if (rng.next() % 2 == 0) .black else .white;
         if (game.board[y][x] != .none) continue;
-        const scores = if (player == .first) game.calcScores(.first) else game.calcScores(.second);
+        const scores = if (player == .black) game.calcScores(.black) else game.calcScores(.white);
         score += scores[y][x];
         game.board[y][x] = player;
-        const score2 = game.debugScoreBoard();
+        const score2 = game.scoreBoard();
         try std.testing.expectEqual(score2, score);
     }
 }
@@ -723,9 +698,9 @@ test "bench-calcScores" {
         for (1..100) |_| {
             const x: usize = @intCast(rng.next() % board_size);
             const y: usize = @intCast(rng.next() % board_size);
-            const player: Player = if (rng.next() % 2 == 0) .first else .second;
+            const player: Stone = if (rng.next() % 2 == 0) .black else .white;
             if (game.board[y][x] != .none) continue;
-            const scores = if (player == .first) game.calcScores(.first) else game.calcScores(.second);
+            const scores = if (player == .black) game.calcScores(.black) else game.calcScores(.white);
             score += scores[y][x];
             game.board[y][x] = player;
         }

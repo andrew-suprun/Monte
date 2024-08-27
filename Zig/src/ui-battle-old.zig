@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 
 const C6 = @import("Connect6.zig");
 const SearchTree = @import("tree.zig").SearchTree(C6);
-const Player = C6.Player;
+const Player = @import("node.zig").Player;
 const ArrayList = std.ArrayList([]u8);
 const Isolate = @import("isolate.zig").Isolate(*ArrayList);
 
@@ -193,7 +193,6 @@ const Monte = struct {
         }
         const move = self.engine.bestMove();
         self.engine.makeMove(move);
-        self.game.makeMove(move);
         self.n_highlighted_places = 2;
         self.highlighted_places[0] = move.places[0];
         self.highlighted_places[1] = move.places[1];

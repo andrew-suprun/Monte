@@ -61,6 +61,7 @@ pub fn Engine(Tree: type, Game: type) type {
         }
 
         fn handleCommand(self: *Self, line: []u8) !void {
+            try std.io.getStdOut().writer().print("command '{s}'\n", .{line});
             var tokens = std.mem.tokenizeScalar(u8, line, ' ');
             if (tokens.next()) |command| {
                 if (std.mem.eql(u8, command, "move")) try self.handleMove(tokens.next());
@@ -68,7 +69,10 @@ pub fn Engine(Tree: type, Game: type) type {
                 if (std.mem.eql(u8, command, "info")) try self.handleInfo();
                 if (std.mem.eql(u8, command, "go")) self.handleGo();
                 if (std.mem.eql(u8, command, "stop")) self.handleStop();
-                if (std.mem.eql(u8, command, "quit")) self.quit = true;
+                if (std.mem.eql(u8, command, "quit")) {
+                    try std.io.getStdOut().writer().print("quitting\n", .{});
+                    self.quit = true;
+                }
             }
         }
 
@@ -76,8 +80,7 @@ pub fn Engine(Tree: type, Game: type) type {
             if (token == null) return error.Error;
             const move = try self.game.initMove(token.?);
             self.tree.makeMove(move);
-            self.game.makeMove(move);
-            self.game.printBoard(move);
+            self.game.printBoard();
             print("\n", .{});
         }
 
