@@ -52,7 +52,7 @@ pub fn SearchTree(Game: type) type {
             for (node.children, child_moves) |*child, move| {
                 child.* = Node{ .player = next_player, .move = move };
                 child.score = @divTrunc(move.score, 2) + acc;
-                switch (move.decision) {
+                switch (move.state) {
                     .win => {
                         child.max_result = next_player;
                         child.min_result = next_player;

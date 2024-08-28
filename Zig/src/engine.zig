@@ -22,7 +22,7 @@ pub fn Engine(Tree: type, Game: type) type {
             return .{
                 .allocator = allocator,
                 .tree = Tree.init(allocator),
-                .game = Game.init(),
+                .game = Game{},
                 .isolate = Isolate.init(list),
             };
         }
@@ -42,6 +42,10 @@ pub fn Engine(Tree: type, Game: type) type {
             while (!self.quit) {
                 if (self.running) {
                     for (0..100) |_| {
+                        if (self.tree.root.max_result == self.tree.root.min_result) {
+                            self.running = false;
+                            break;
+                        }
                         self.tree.expand(&self.game);
                     }
                 }
@@ -69,17 +73,15 @@ pub fn Engine(Tree: type, Game: type) type {
                 if (std.mem.eql(u8, command, "info")) try self.handleInfo();
                 if (std.mem.eql(u8, command, "go")) self.handleGo();
                 if (std.mem.eql(u8, command, "stop")) self.handleStop();
-                if (std.mem.eql(u8, command, "quit")) {
-                    try std.io.getStdOut().writer().print("quitting\n", .{});
-                    self.quit = true;
-                }
+                if (std.mem.eql(u8, command, "reset")) self.handleReset();
+                if (std.mem.eql(u8, command, "quit")) self.quit = true;
             }
         }
 
         fn handleMove(self: *Self, token: ?[]const u8) !void {
             if (token == null) return error.Error;
             const move = try self.game.initMove(token.?);
-            self.tree.makeMove(move);
+            self.tree.makeMove(&self.game, move);
             self.game.printBoard();
             print("\n", .{});
         }
@@ -87,7 +89,7 @@ pub fn Engine(Tree: type, Game: type) type {
         fn handleBestMove(self: *Self) !void {
             const move = self.tree.bestMove();
             var buf: [7]u8 = undefined;
-            try std.io.getStdOut().writer().print("best-move {s}\n", .{move.str(&buf)});
+            try std.io.getStdOut().writer().print("best-move {s} {s}\n", .{ move.str(&buf), move.state.str() });
         }
 
         fn handleInfo(self: *Self) !void {
@@ -102,6 +104,12 @@ pub fn Engine(Tree: type, Game: type) type {
         fn handleStop(self: *Self) void {
             print("stopped\n", .{});
             self.running = false;
+        }
+
+        fn handleReset(self: *Self) void {
+            const allocator = self.allocator;
+            self.deinit();
+            self.* = Self.init(allocator) catch unreachable;
         }
 
         fn replyError(message: []const u8) !void {

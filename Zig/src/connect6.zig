@@ -11,13 +11,13 @@ pub const max_places: comptime_int = if (debug) 6 else 200;
 
 const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
-pub const Decision = enum(u2) {
+pub const MoveState = enum(u2) {
     nonterminal,
     win,
     loss,
     draw,
 
-    fn str(self: @This()) []const u8 {
+    pub fn str(self: @This()) []const u8 {
         return switch (self) {
             .nonterminal => "nonterminal",
             .win => "win",
@@ -28,7 +28,7 @@ pub const Decision = enum(u2) {
 };
 
 pub const Move = struct {
-    decision: Decision = .nonterminal,
+    state: MoveState = .nonterminal,
     places: [2]Place,
     score: i32,
 
@@ -52,7 +52,7 @@ pub const Move = struct {
         const move_str = self.str(&buf);
         std.debug.print("[{s}, decision: {s}, score: {d}]", .{
             move_str,
-            self.decision.str(),
+            self.state.str(),
             self.score,
         });
     }
@@ -117,12 +117,12 @@ pub fn initMoveFromPlaces(self: *Self, places: [2]Place) Move {
         else
             self.ratePlace(places[1], .white);
     } else 0;
-    var decision: Decision = .nonterminal;
+    var decision: MoveState = .nonterminal;
     if (@abs(score1 + score2) > 1024) decision = .win;
     return Move{
         .places = sortPlaces(places[0], places[1]),
         .score = score1 + score2,
-        .decision = decision,
+        .state = decision,
     };
 }
 
@@ -196,7 +196,7 @@ fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: 
         buf[0] = Move{
             .places = sortPlaces(place_list[0], place_list[1]),
             .score = 0,
-            .decision = .draw,
+            .state = .draw,
         };
         return buf[0..1];
     }
@@ -318,7 +318,7 @@ fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
 fn winningMove(p1: Place, p2: Place, score: i32, buf: []Move) []Move {
     buf[0] = Move{
         .places = sortPlaces(p1, p2),
-        .decision = .win,
+        .state = .win,
         .score = score,
     };
     return buf[0..1];

@@ -7,12 +7,82 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 type proc struct {
-	in  chan string
-	out io.WriteCloser
+	name string
+	in   chan string
+	out  io.WriteCloser
+	err  io.ReadCloser
+}
+
+func (p *proc) send(f string, a ...any) {
+	str := fmt.Sprintf(f, a...)
+	p.out.Write([]byte(str))
+	p.out.Write([]byte{'\n'})
+	fmt.Printf("sent %q\n", str)
+}
+
+type runner struct {
+	procs         [2]proc
+	currentProcId int
+	ticker        <-chan time.Time
+	reset         bool
+}
+
+func (r *runner) run() {
+	r.procs[0].send("move j10+j10")
+	r.procs[1].send("move j10+j10")
+	r.procs[0].send("go")
+	r.procs[1].send("go")
+	for !r.reset {
+		select {
+		case msg := <-r.procs[0].in:
+			r.handleMessage(msg, 0)
+		case msg := <-r.procs[1].in:
+			r.handleMessage(msg, 1)
+		case <-r.ticker:
+			r.handleTick()
+		}
+	}
+}
+
+func (r *runner) handleMessage(msg string, procId int) {
+	msg = strings.TrimSpace(msg)
+	fmt.Printf("Got message from %d[%s]: %q\n", procId, r.procs[procId].name, msg)
+	tokens := strings.Split(msg, " ")
+	switch tokens[0] {
+	case "best-move":
+		if len(tokens) != 3 {
+			fmt.Printf("Invalid best-move command: %q\n", msg)
+			return
+		}
+		fmt.Printf("move by proc%d: %s\n", procId, tokens[1])
+		switch tokens[2] {
+		case "nonterminal":
+			for procId := range r.procs {
+				r.procs[procId].send("move %s", tokens[1])
+			}
+		case "win":
+			fmt.Printf("Process %d won", procId)
+			r.reset = true
+		case "loss":
+			fmt.Printf("Process %d lost", procId)
+			r.reset = true
+		case "draw":
+			fmt.Printf("It's a draw")
+			r.reset = true
+		}
+	}
+}
+
+func (r *runner) handleTick() {
+	r.procs[r.currentProcId].send("info")
+	r.procs[r.currentProcId].send("best-move")
+	fmt.Printf("tick %d\n", r.currentProcId)
+	r.currentProcId = 1 - r.currentProcId
 }
 
 func main() {
@@ -22,70 +92,42 @@ func main() {
 		fmt.Println("       directory with battle executable")
 		return
 	}
-	dir := filepath.Dir(os.Args[0])
-	fmt.Println("dir", dir)
 
 	var procs [2]proc
 	for i := range 2 {
-		proc, err := startProc(procPath(dir, os.Args[i+1]))
+		proc, err := startProc(os.Args[i+1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Failed to start", os.Args[i+1])
 		}
 		procs[i] = proc
 	}
 
-	currentProcId := 0
-	lastTick := time.Now()
-
-	for {
-		select {
-		case msg := <-procs[0].in:
-			handleMessage(msg, 0)
-		case msg := <-procs[1].in:
-			handleMessage(msg, 1)
-			_ = msg
-		default:
-		}
-		if time.Since(lastTick) > time.Second {
-			procs[currentProcId].out.Write([]byte("best-move"))
-			currentProcId = 1 - currentProcId
-		}
+	r := runner{
+		procs:         procs,
+		currentProcId: 0,
+		ticker:        time.Tick(time.Second),
 	}
+	r.run()
 }
 
-func handleMessage(msg string, procId int) {
-	// TODO: update server to handle 'reset-game' command
-	// TODO: update server inform about game terminal state
-}
-
-func procPath(dir, name string) string {
-	if dir == "." {
-		return "./" + name
+func startProc(name string) (proc, error) {
+	dir := filepath.Dir(os.Args[0])
+	path := "./" + name
+	if dir != "." {
+		path = filepath.Join(dir, name)
 	}
-	return filepath.Join(dir, name)
-}
 
-func startProc(path string) (proc, error) {
 	cmd := exec.Command(path)
 	if cmd.Err != nil {
 		return proc{}, cmd.Err
 	}
 	writer, _ := cmd.StdinPipe()
 	reader, _ := cmd.StdoutPipe()
+	err, _ := cmd.StderrPipe()
 	ch := make(chan string, 20)
 	go read(reader, ch)
-	cmd.Start()
-	fmt.Println("after start:", cmd.Err)
-	in := bufio.NewReader(os.Stdin)
-	for {
-		line, _ := in.ReadString('\n')
-		fmt.Printf("%q\n", line)
-		writer.Write([]byte(line))
-		if line == "quit\n" {
-			break
-		}
-	}
-	return proc{in: ch, out: writer}, nil
+	go readErr(err)
+	return proc{name: name, in: ch, out: writer, err: err}, cmd.Start()
 }
 
 func read(reader io.ReadCloser, ch chan string) {
@@ -100,5 +142,20 @@ func read(reader io.ReadCloser, ch chan string) {
 			break
 		}
 		ch <- line
+	}
+}
+
+func readErr(errs io.ReadCloser) {
+	bufReader := bufio.NewReader(errs)
+	for {
+		line, err := bufReader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "ERROR: ", err)
+			break
+		}
+		os.Stderr.WriteString(line)
 	}
 }
