@@ -9,27 +9,37 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"monte/ui"
 )
 
-type proc struct {
-	name string
-	in   chan string
-	out  io.WriteCloser
-	err  io.ReadCloser
-}
+func main() {
+	if len(os.Args) != 3 {
+		fmt.Println("Usage: battle <engine1> <engine1>")
+		fmt.Println("       both engines must be in the same")
+		fmt.Println("       directory with battle executable")
+		return
+	}
 
-func (p *proc) send(f string, a ...any) {
-	str := fmt.Sprintf(f, a...)
-	p.out.Write([]byte(str))
-	p.out.Write([]byte{'\n'})
-	fmt.Printf("sent %q\n", str)
-}
+	var procs [2]proc
+	for i := range 2 {
+		proc, err := startProc(os.Args[i+1])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to start", os.Args[i+1])
+		}
+		procs[i] = proc
+	}
 
-type runner struct {
-	procs         [2]proc
-	currentProcId int
-	ticker        <-chan time.Time
-	reset         bool
+	ch := make(chan ui.Command)
+
+	r := runner{
+		procs:         procs,
+		currentProcId: 0,
+		ticker:        time.Tick(time.Second),
+		uiChan:        ch,
+	}
+	go r.run()
+	ui.Run(ch)
 }
 
 func (r *runner) run() {
@@ -49,6 +59,28 @@ func (r *runner) run() {
 	}
 }
 
+type proc struct {
+	name string
+	in   chan string
+	out  io.WriteCloser
+	err  io.ReadCloser
+}
+
+func (p *proc) send(f string, a ...any) {
+	str := fmt.Sprintf(f, a...)
+	p.out.Write([]byte(str))
+	p.out.Write([]byte{'\n'})
+	fmt.Printf("sent %q\n", str)
+}
+
+type runner struct {
+	procs         [2]proc
+	currentProcId int
+	ticker        <-chan time.Time
+	uiChan        chan<- ui.Command
+	reset         bool
+}
+
 func (r *runner) handleMessage(msg string, procId int) {
 	msg = strings.TrimSpace(msg)
 	fmt.Printf("Got message from %d[%s]: %q\n", procId, r.procs[procId].name, msg)
@@ -60,6 +92,9 @@ func (r *runner) handleMessage(msg string, procId int) {
 			return
 		}
 		fmt.Printf("move by proc%d: %s\n", procId, tokens[1])
+
+		r.uiChan <- ui.Move(tokens[1])
+
 		switch tokens[2] {
 		case "nonterminal":
 			for procId := range r.procs {
@@ -83,31 +118,6 @@ func (r *runner) handleTick() {
 	r.procs[r.currentProcId].send("best-move")
 	fmt.Printf("tick %d\n", r.currentProcId)
 	r.currentProcId = 1 - r.currentProcId
-}
-
-func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: battle <engine1> <engine1>")
-		fmt.Println("       both engines must be in the same")
-		fmt.Println("       directory with battle executable")
-		return
-	}
-
-	var procs [2]proc
-	for i := range 2 {
-		proc, err := startProc(os.Args[i+1])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to start", os.Args[i+1])
-		}
-		procs[i] = proc
-	}
-
-	r := runner{
-		procs:         procs,
-		currentProcId: 0,
-		ticker:        time.Tick(time.Second),
-	}
-	r.run()
 }
 
 func startProc(name string) (proc, error) {
