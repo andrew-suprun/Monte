@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const print = std.debug.print;
+const Prng = std.rand.Random.DefaultPrng;
 
 pub const Player = enum {
     none,
@@ -44,9 +44,8 @@ pub fn Node(Game: type) type {
         player: Player,
         children: []Self = &[_]Self{},
         score: i32 = 0,
-        n_extentions: i32 = 0,
-        max_result: Player = .first,
-        min_result: Player = .second,
+        n_expansions: i32 = 0,
+        conclusive: bool = false,
 
         const Self = @This();
 
@@ -57,59 +56,35 @@ pub fn Node(Game: type) type {
             allocator.free(self.children);
         }
 
-        pub fn bestMove(self: Self) Move {
-            var selected_node: *Self = &self.children[0];
+        pub fn bestNode(self: Self, rng: *Prng) Self {
+            var best_node: *Self = &self.children[0];
+            var prob: usize = 2;
             for (self.children[1..]) |*child| {
-                var score = child.score;
-                if (self.player == .second) {
-                    if (child.max_result == .second) {
-                        if (child.n_extentions > selected_node.n_extentions) {
-                            selected_node = child;
-                        }
-                        continue;
-                    }
-                    if (child.min_result == .first) {
-                        return child.move;
-                    }
-                    if (score < 0 and child.min_result == .none) score = 0;
-                    if (score > selected_node.score) {
-                        selected_node = child;
-                    }
-                } else {
-                    if (child.min_result == .first) {
-                        if (child.n_extentions > selected_node.n_extentions) {
-                            selected_node = child;
-                        }
-                        continue;
-                    }
-                    if (child.max_result == .second) {
-                        return child.move;
-                    }
-                    if (score > 0 and child.max_result == .none) score = 0;
-                    if (score < selected_node.score) {
-                        selected_node = child;
-                    }
+                if (best_node.score < child.score) {
+                    best_node = child;
+                    prob = 2;
+                } else if (best_node.score == child.score and rng.next() % prob == 0) {
+                    best_node = child;
+                    prob += 1;
                 }
             }
 
-            return selected_node.move;
+            return best_node.*;
         }
 
         pub fn selectChild(self: Self, comptime player: Player) *Self {
             var selected_node: ?*Self = null;
             var selected_score: i32 = std.math.minInt(i32);
             for (self.children) |*child| {
-                if (child.max_result != child.min_result) {
+                if (!child.conclusive) {
                     const child_score = if (player == .first)
-                        child.score - child.n_extentions
+                        child.score - child.n_expansions
                     else
-                        -child.score - child.n_extentions;
+                        -child.score - child.n_expansions;
                     if (selected_node == null or selected_score < child_score) {
                         selected_node = child;
                         selected_score = child_score;
                     }
-                } else {
-                    if (player == child.max_result) return child;
                 }
             }
 
@@ -117,29 +92,22 @@ pub fn Node(Game: type) type {
         }
 
         pub fn updateStats(self: *Self) void {
-            self.n_extentions += 1;
+            self.n_expansions += 1;
+            self.conclusive = true;
             if (self.player == .second) {
                 self.score = std.math.minInt(i32);
-                self.max_result = .second;
-                self.min_result = .second;
 
                 for (self.children) |child| {
                     self.score = @max(self.score, child.score);
-                    self.max_result = self.max_result.max(child.max_result);
-                    self.min_result = self.min_result.max(child.min_result);
+                    self.conclusive = self.conclusive and child.conclusive;
                 }
-                if (self.min_result == .none) self.score = @max(self.score, 0);
             } else {
                 self.score = std.math.maxInt(i32);
-                self.max_result = .first;
-                self.min_result = .first;
 
                 for (self.children) |child| {
                     self.score = @min(self.score, child.score);
-                    self.max_result = self.max_result.min(child.max_result);
-                    self.min_result = self.min_result.min(child.min_result);
+                    self.conclusive = self.conclusive and child.conclusive;
                 }
-                if (self.max_result == .none) self.score = @min(self.score, 0);
             }
         }
 
@@ -151,14 +119,12 @@ pub fn Node(Game: type) type {
             var min: Player = undefined;
             var score: i32 = undefined;
 
+            var conclusive = true;
             if (player == .second) {
                 score = std.math.minInt(i32);
-                max = .second;
-                min = .second;
                 for (self.children) |child| {
                     score = @max(score, child.score);
-                    max = max.max(child.max_result);
-                    min = min.max(child.min_result);
+                    conclusive = conclusive and child.conclusive;
                 }
             } else {
                 score = std.math.maxInt(i32);
@@ -166,12 +132,11 @@ pub fn Node(Game: type) type {
                 min = .first;
                 for (self.children) |child| {
                     score = @min(score, child.score);
-                    max = max.min(child.max_result);
-                    min = min.min(child.min_result);
+                    conclusive = conclusive and child.conclusive;
                 }
             }
-            if (self.score != score or self.max_result != max or self.min_result != min) {
-                print("\nSelf Check: score = {d} min = {s} max = {s}", .{ score, min.str(), max.str() });
+            if (self.score != score or self.conclusive != conclusive) {
+                std.debug.print("\nSelf Check: score = {d} conclusive = {any}", .{ score, conclusive });
                 self.debugPrintRecursive(0);
                 std.debug.panic("", .{});
             }
@@ -192,24 +157,23 @@ pub fn Node(Game: type) type {
         }
 
         pub fn debugPrintLevel(self: Self, move: Move, level: usize) void {
-            print("\n", .{});
-            for (0..level) |_| print("| ", .{});
-            print("lvl{d} ", .{level + 1});
+            std.debug.print("\n", .{});
+            for (0..level) |_| std.debug.print("| ", .{});
+            std.debug.print("lvl{d} ", .{level + 1});
             move.print();
             self.debugPrint();
         }
 
         pub fn debugPrint(self: Self) void {
-            print(" | player: {s}", .{self.player.str()});
-            print(" | score: {d}", .{self.score});
-            print(" | min: {s}", .{self.min_result.str()});
-            print(" | max: {s}", .{self.max_result.str()});
-            print(" | extentions: {d}", .{self.n_extentions});
-            print(" | children {d}", .{self.children.len});
+            std.debug.print(" | player: {s}", .{self.player.str()});
+            std.debug.print(" | score: {d}", .{self.score});
+            std.debug.print(" | conclusive: {any}", .{self.conclusive});
+            std.debug.print(" | extentions: {d}", .{self.n_expansions});
+            std.debug.print(" | children {d}", .{self.children.len});
         }
 
         pub fn debugPrintChildren(self: Self) void {
-            print("\n", .{});
+            std.debug.print("\n", .{});
             self.debugPrint();
             for (self.children) |child| {
                 child.debugPrintLevel(child.move, 0);

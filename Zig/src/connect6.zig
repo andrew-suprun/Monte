@@ -2,34 +2,17 @@ board: [board_size][board_size]Stone = [1][board_size]Stone{[1]Stone{.none} ** b
 n_moves: usize = 0,
 
 const std = @import("std");
-const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 pub const board_size: comptime_int = 19;
-pub const max_moves: comptime_int = if (debug) 6 else 200;
-pub const max_places: comptime_int = if (debug) 6 else 200;
+pub const max_moves: comptime_int = if (debug) 6 else 100;
+pub const max_places: comptime_int = if (debug) 6 else 50;
 
 const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
-pub const MoveState = enum(u2) {
-    nonterminal,
-    win,
-    loss,
-    draw,
-
-    pub fn str(self: @This()) []const u8 {
-        return switch (self) {
-            .nonterminal => "nonterminal",
-            .win => "win",
-            .loss => "loss",
-            .draw => "draw",
-        };
-    }
-};
-
 pub const Move = struct {
-    state: MoveState = .nonterminal,
     places: [2]Place,
+    terminal: bool = false,
     score: i32,
 
     pub fn eql(self: @This(), other: @This()) bool {
@@ -50,9 +33,9 @@ pub const Move = struct {
     pub fn print(self: @This()) void {
         var buf: [8]u8 = undefined;
         const move_str = self.str(&buf);
-        std.debug.print("[{s}, decision: {s}, score: {d}]", .{
+        std.debug.print("[{s}, terminal: {any}, score: {d}]", .{
             move_str,
-            self.state.str(),
+            self.terminal,
             self.score,
         });
     }
@@ -117,12 +100,10 @@ pub fn initMoveFromPlaces(self: *Self, places: [2]Place) Move {
         else
             self.ratePlace(places[1], .white);
     } else 0;
-    var decision: MoveState = .nonterminal;
-    if (@abs(score1 + score2) > 1024) decision = .win;
     return Move{
         .places = sortPlaces(places[0], places[1]),
         .score = score1 + score2,
-        .state = decision,
+        .terminal = @abs(score1 + score2) > 1024,
     };
 }
 
@@ -196,7 +177,7 @@ fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: 
         buf[0] = Move{
             .places = sortPlaces(place_list[0], place_list[1]),
             .score = 0,
-            .state = .draw,
+            .terminal = true,
         };
         return buf[0..1];
     }
@@ -318,7 +299,7 @@ fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
 fn winningMove(p1: Place, p2: Place, score: i32, buf: []Move) []Move {
     buf[0] = Move{
         .places = sortPlaces(p1, p2),
-        .state = .win,
+        .terminal = true,
         .score = score,
     };
     return buf[0..1];
@@ -552,12 +533,12 @@ fn debugRate(players: i32) i32 {
 }
 
 pub fn printBoard(self: Self) void {
-    print("\n  ", .{});
+    std.debug.print("\n  ", .{});
     for (0..board_size) |i| {
-        print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
+        std.debug.print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
     }
     for (0..board_size) |y| {
-        print("\n{:2}", .{board_size - y});
+        std.debug.print("\n{:2}", .{board_size - y});
         for (0..board_size) |x| {
             const piece = switch (self.board[y][x]) {
                 .black => "─X",
@@ -581,18 +562,29 @@ pub fn printBoard(self: Self) void {
                 },
             };
 
-            print("{s}", .{piece});
+            std.debug.print("{s}", .{piece});
         }
-        print(" {:2}", .{board_size - y});
+        std.debug.print(" {:2}", .{board_size - y});
     }
 
-    print("\n  ", .{});
+    std.debug.print("\n  ", .{});
     for (0..board_size) |i| {
-        print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
+        std.debug.print(" {c}", .{@as(u8, @intCast(i)) + 'a'});
     }
 }
 
-test "Move.str" {
+test "Move.str.1" {
+    const m = Move{
+        .places = [2]Place{ .{ .x = 7, .y = 10 }, .{ .x = 7, .y = 9 } },
+        .terminal = false,
+        .score = 0,
+    };
+    var buf: [8]u8 = undefined;
+    const m_str = m.str(&buf);
+    std.debug.print("m_str = {s}:{d}\n", .{ m_str, m_str.len });
+}
+
+test "Move.str.2" {
     var move = Move{ .places = .{ .{ .x = 0, .y = 18 }, .{ .x = 9, .y = 9 } }, .score = 0 };
     var buf: [7]u8 = undefined;
     const move_str = move.str(&buf);
@@ -604,7 +596,7 @@ test "C6" {
     game.makeMove(try game.initMove("j10+j10"));
     game.printBoard();
     const score = game.scoreBoard();
-    print("\nscore = {d} \n", .{score});
+    std.debug.print("\nscore = {d} \n", .{score});
     var buf: [Self.max_moves]Move = undefined;
     const moves = game.possibleMoves(&buf);
     // print("\npossible moves {d}", .{moves.len});
@@ -631,7 +623,7 @@ test "scoreBoard" {
         }
     }
     const nanos = start.read();
-    print("\n{d} result {d}\n", .{ nanos / 1_000_000, result });
+    std.debug.print("\n{d} result {d}\n", .{ nanos / 1_000_000, result });
 }
 
 test "ratePlace" {
@@ -646,7 +638,7 @@ test "ratePlace" {
         }
     }
     const nanos = start.read();
-    print("\ntime {d}ms result {d}\n", .{ nanos / 1_000_000, result });
+    std.debug.print("\ntime {d}ms result {d}\n", .{ nanos / 1_000_000, result });
 }
 
 test "placeStone" {
@@ -703,7 +695,7 @@ test "bench-calcScores" {
         }
     }
     std.mem.doNotOptimizeAway(score);
-    print("\ntime {}ms\n", .{timer.read() / 1_000_000});
+    std.debug.print("\ntime {}ms\n", .{timer.read() / 1_000_000});
 }
 
 test "possibleMoves" {
@@ -718,6 +710,6 @@ test "possibleMoves" {
         n_moves += moves.len;
     }
 
-    print("\ntime {}ms", .{timer.read() / 1_000_000});
-    print("\nmoves {d}\n", .{n_moves});
+    std.debug.print("\ntime {}ms", .{timer.read() / 1_000_000});
+    std.debug.print("\nmoves {d}\n", .{n_moves});
 }

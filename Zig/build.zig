@@ -4,22 +4,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const vaxis_dep = b.dependency("vaxis", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
     const exe = b.addExecutable(.{
-        // .name = "Monte",
-        // .root_source_file = b.path("src/main.zig"),
         .name = "Monte",
-        .root_source_file = b.path("src/ui.zig"),
-        // .name = "ui-battle",
-        // .root_source_file = b.path("src/ui-battle.zig"),
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("vaxis", vaxis_dep.module("vaxis"));
 
     b.installArtifact(exe);
     const run_cmd = b.addRunArtifact(exe);

@@ -1,5 +1,4 @@
 const std = @import("std");
-const print = std.debug.print;
 
 pub fn Heap(T: type, Context: type, comptime less: fn (context: Context, a: T, b: T) bool, capacity: usize) type {
     return struct {
@@ -107,9 +106,9 @@ test "unsorted" {
     assert(heap.len == 20);
     var buf: [20]usize = undefined;
     const unsorted = heap.unsorted(&buf);
-    print("unsorted {any}\n", .{unsorted});
+    std.debug.print("unsorted {any}\n", .{unsorted});
     const sorted = heap.sorted(&buf);
-    print("sorted   {any}\n", .{sorted});
+    std.debug.print("sorted   {any}\n", .{sorted});
     for (1..sorted.len) |i| {
         assert(sorted[i - 1] >= sorted[i]);
     }
@@ -127,5 +126,5 @@ test "heap" {
         const sorted = heap.unsorted(&buf);
         assert(sorted.len == 100);
     }
-    print("\ntime {d}ms\n", .{timer.read() / 1_000_000});
+    std.debug.print("\ntime {d}ms\n", .{timer.read() / 1_000_000});
 }

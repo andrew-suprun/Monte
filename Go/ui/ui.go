@@ -2,7 +2,6 @@ package ui
 
 import (
 	"errors"
-	"fmt"
 	"image/color"
 	"strings"
 
@@ -30,7 +29,6 @@ type connect6 struct {
 }
 
 func (g *connect6) handleCommand(cmd Command) error {
-	fmt.Println("### Got", cmd)
 	switch cmd := cmd.(type) {
 	case Move:
 		m, err := parseMove(cmd)
@@ -43,7 +41,6 @@ func (g *connect6) handleCommand(cmd Command) error {
 }
 
 func Run(commands <-chan Command) {
-	fmt.Println("### Stared UI")
 	c6 := connect6{}
 	rl.InitWindow(boardSize, boardSize, "Connect6")
 	defer rl.CloseWindow()

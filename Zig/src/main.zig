@@ -1,7 +1,6 @@
 const std = @import("std");
 const math = std.math;
 const Allocator = std.mem.Allocator;
-const print = std.debug.print;
 
 const C6 = @import("Connect6.zig");
 const Tree = @import("tree.zig").SearchTree(C6);
@@ -22,21 +21,21 @@ pub fn main() !void {
 
     while (true) {
         for (0..10_000) |i| {
-            if (tree.root.min_result == tree.root.max_result) {
-                print("\nexpand n: {d} winner: {s}", .{ i, tree.root.max_result.str() });
+            if (tree.root.conclusive) {
+                std.debug.print("\nexpand n: {d} score: {d}", .{ i, tree.root.score });
                 break;
             }
             tree.expand(&game);
         }
         move = tree.bestMove();
-        print("\n", .{});
+        std.debug.print("\n", .{});
         move.print();
         tree.root.debugPrintChildren();
         tree.makeMove(&game, move);
         game.printBoard();
-        if (move.decision != .nonterminal) break;
+        if (!move.terminal) break;
     }
-    print("\nDONE\n", .{});
+    std.debug.print("\nDONE\n", .{});
 }
 
 test {
@@ -88,7 +87,7 @@ test "expand" {
     for (0..30) |i| {
         tree.debugPrint();
         tree.expand(&game);
-        print("\n----\n expand {}", .{i});
+        std.debug.print("\n----\n expand {}", .{i});
         tree.debugPrint();
         tree.debugSelfCheck(game);
     }

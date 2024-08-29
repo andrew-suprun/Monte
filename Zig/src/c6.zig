@@ -6,8 +6,8 @@ const SearchTree = @import("tree.zig").SearchTree(Game);
 const Engine = @import("engine.zig").Engine(SearchTree, Game);
 
 pub fn main() !void {
-    try std.io.getStdOut().writer().print("server started\n", .{});
-    defer std.io.getStdOut().writer().print("server ended\n", .{}) catch unreachable;
+    std.debug.print("server started\n", .{});
+    defer std.debug.print("server ended\n", .{});
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();

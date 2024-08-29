@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const print = std.debug.print;
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
+const Prng = std.rand.Random.DefaultPrng;
 
 pub fn SearchTree(Game: type) type {
     const Move = Game.Move;
@@ -10,6 +10,7 @@ pub fn SearchTree(Game: type) type {
         root: Node,
         acc: i32 = 0,
         allocator: Allocator,
+        rng: Prng,
 
         const Self = @This();
         const Node = @import("node.zig").Node(Game);
@@ -18,6 +19,7 @@ pub fn SearchTree(Game: type) type {
             return Self{
                 .root = Node{ .player = .second, .move = undefined },
                 .allocator = allocator,
+                .rng = Prng.init(@intCast(std.time.microTimestamp())),
             };
         }
 
@@ -52,21 +54,12 @@ pub fn SearchTree(Game: type) type {
             for (node.children, child_moves) |*child, move| {
                 child.* = Node{ .player = next_player, .move = move };
                 child.score = @divTrunc(move.score, 2) + acc;
-                switch (move.state) {
-                    .win => {
-                        child.max_result = next_player;
-                        child.min_result = next_player;
-                    },
-                    .draw => {
-                        if (node.player == .first) child.max_result = .none else child.min_result = .none;
-                    },
-                    else => {},
-                }
+                child.conclusive = move.terminal;
             }
         }
 
-        pub fn bestMove(self: Self) Move {
-            return self.root.bestMove();
+        pub fn bestNode(self: *Self) Node {
+            return self.root.bestNode(&self.rng);
         }
 
         pub fn bestLine(self: Self, game: Game, buf: []Move) []Move {

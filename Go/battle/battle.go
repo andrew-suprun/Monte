@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
+	"monte/events"
 	"monte/ui"
 )
 
@@ -35,18 +35,22 @@ func main() {
 	r := runner{
 		procs:         procs,
 		currentProcId: 0,
-		ticker:        time.Tick(time.Second),
+		ticker:        time.Tick(2000 * time.Millisecond),
 		uiChan:        ch,
 	}
 	go r.run()
 	ui.Run(ch)
+	r.procs[0].send("quit")
+	r.procs[1].send("quit")
 }
 
 func (r *runner) run() {
 	r.procs[0].send("move j10+j10")
 	r.procs[1].send("move j10+j10")
-	r.procs[0].send("go")
-	r.procs[1].send("go")
+	r.uiChan <- ui.Move("j10+j10")
+	r.procs[0].send("move i9+i11")
+	r.procs[1].send("move i9+i11")
+	r.uiChan <- ui.Move("i9+i11")
 	for !r.reset {
 		select {
 		case msg := <-r.procs[0].in:
@@ -70,7 +74,6 @@ func (p *proc) send(f string, a ...any) {
 	str := fmt.Sprintf(f, a...)
 	p.out.Write([]byte(str))
 	p.out.Write([]byte{'\n'})
-	fmt.Printf("sent %q\n", str)
 }
 
 type runner struct {
@@ -82,42 +85,32 @@ type runner struct {
 }
 
 func (r *runner) handleMessage(msg string, procId int) {
-	msg = strings.TrimSpace(msg)
-	fmt.Printf("Got message from %d[%s]: %q\n", procId, r.procs[procId].name, msg)
-	tokens := strings.Split(msg, " ")
-	switch tokens[0] {
-	case "best-move":
-		if len(tokens) != 3 {
-			fmt.Printf("Invalid best-move command: %q\n", msg)
-			return
-		}
-		fmt.Printf("move by proc%d: %s\n", procId, tokens[1])
+	fmt.Printf("Proc %d: %q\n", procId, msg)
+	event, err := events.ParseEvent(msg)
+	if err != nil {
+		fmt.Printf("Error %v | proc %d\n", err.Error(), procId)
+		return
+	}
+	switch event := event.(type) {
+	case events.BestMove:
+		r.currentProcId = procId
+		// r.uiChan <- ui.Move(event.Move)
 
-		r.uiChan <- ui.Move(tokens[1])
-
-		switch tokens[2] {
-		case "nonterminal":
-			for procId := range r.procs {
-				r.procs[procId].send("move %s", tokens[1])
+		if event.Terminal {
+			winner := "It's a Draw"
+			if event.Score > 1000 {
+				winner = "Black won"
+			} else if event.Score < -1000 {
+				winner = "White won"
 			}
-		case "win":
-			fmt.Printf("Process %d won", procId)
-			r.reset = true
-		case "loss":
-			fmt.Printf("Process %d lost", procId)
-			r.reset = true
-		case "draw":
-			fmt.Printf("It's a draw")
+			fmt.Println(winner)
 			r.reset = true
 		}
 	}
 }
 
 func (r *runner) handleTick() {
-	r.procs[r.currentProcId].send("info")
-	r.procs[r.currentProcId].send("best-move")
-	fmt.Printf("tick %d\n", r.currentProcId)
-	r.currentProcId = 1 - r.currentProcId
+	// r.procs[1-r.currentProcId].send("best-move")
 }
 
 func startProc(name string) (proc, error) {

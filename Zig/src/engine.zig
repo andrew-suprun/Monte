@@ -1,5 +1,4 @@
 const std = @import("std");
-const print = std.debug.print;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList([]u8);
 const Isolate = @import("isolate.zig").Isolate(*ArrayList);
@@ -12,24 +11,30 @@ pub fn Engine(Tree: type, Game: type) type {
         thread: std.Thread = undefined,
         running: bool = false,
         quit: bool = false,
-        isolate: Isolate,
+        isolate: *Isolate,
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator) !Self {
             const list = try allocator.create(ArrayList);
             list.* = ArrayList.init(allocator);
+            const iso = try allocator.create(Isolate);
+            iso.* = Isolate.init(list);
             return .{
                 .allocator = allocator,
                 .tree = Tree.init(allocator),
                 .game = Game{},
-                .isolate = Isolate.init(list),
+                .isolate = iso,
+                .thread = try std.Thread.spawn(.{}, reader, .{ allocator, iso }),
             };
         }
 
         pub fn deinit(self: *Self) void {
             var input = self.isolate.acquire();
-            defer self.isolate.release(input);
+            defer {
+                self.isolate.release(input);
+                self.allocator.destroy(self.isolate);
+            }
             for (input.items) |item| {
                 self.allocator.free(item);
             }
@@ -38,17 +43,29 @@ pub fn Engine(Tree: type, Game: type) type {
         }
 
         pub fn run(self: *Self) !void {
-            self.thread = try std.Thread.spawn(.{}, reader, .{ self.allocator, &self.isolate });
+            std.debug.print("running\n", .{});
+            var best_move_buf: [8]u8 = undefined;
+            var best_move: []u8 = best_move_buf[0..0];
+            var move_buf: [8]u8 = undefined;
+            var move: []u8 = move_buf[0..0];
             while (!self.quit) {
-                if (self.running) {
-                    for (0..100) |_| {
-                        if (self.tree.root.max_result == self.tree.root.min_result) {
-                            self.running = false;
-                            break;
-                        }
-                        self.tree.expand(&self.game);
+                if (!self.tree.root.conclusive and self.running) {
+                    self.tree.expand(&self.game);
+                    const node = self.tree.bestNode();
+                    move = node.move.str(&move_buf);
+                    if (!std.mem.eql(u8, best_move, move)) {
+                        try std.io.getStdOut().writer().print("best-move move={s}; terminal={any}; score={d}\n", .{
+                            move,
+                            node.move.terminal,
+                            node.score,
+                            node.n_expansions,
+                        });
+                        best_move = &best_move_buf;
+                        std.mem.copyForwards(u8, best_move, move);
+                        best_move.len = move.len;
                     }
                 }
+
                 var input = self.isolate.acquire();
                 defer self.isolate.release(input);
 
@@ -59,19 +76,18 @@ pub fn Engine(Tree: type, Game: type) type {
                 for (input.items) |command| {
                     try self.handleCommand(command);
                     self.allocator.free(command);
+                    best_move = "";
                 }
                 input.clearRetainingCapacity();
             }
         }
 
         fn handleCommand(self: *Self, line: []u8) !void {
-            try std.io.getStdOut().writer().print("command '{s}'\n", .{line});
             var tokens = std.mem.tokenizeScalar(u8, line, ' ');
             if (tokens.next()) |command| {
                 if (std.mem.eql(u8, command, "move")) try self.handleMove(tokens.next());
-                if (std.mem.eql(u8, command, "best-move")) try self.handleBestMove();
+                // if (std.mem.eql(u8, command, "best-move")) try self.handleBestMove();
                 if (std.mem.eql(u8, command, "info")) try self.handleInfo();
-                if (std.mem.eql(u8, command, "go")) self.handleGo();
                 if (std.mem.eql(u8, command, "stop")) self.handleStop();
                 if (std.mem.eql(u8, command, "reset")) self.handleReset();
                 if (std.mem.eql(u8, command, "quit")) self.quit = true;
@@ -82,27 +98,35 @@ pub fn Engine(Tree: type, Game: type) type {
             if (token == null) return error.Error;
             const move = try self.game.initMove(token.?);
             self.tree.makeMove(&self.game, move);
-            self.game.printBoard();
-            print("\n", .{});
+            if (!self.tree.root.conclusive) {
+                self.tree.expand(&self.game);
+                self.running = true;
+            }
+
+            // self.game.printBoard();
+            // print("\n", .{});
         }
 
-        fn handleBestMove(self: *Self) !void {
-            const move = self.tree.bestMove();
-            var buf: [7]u8 = undefined;
-            try std.io.getStdOut().writer().print("best-move {s} {s}\n", .{ move.str(&buf), move.state.str() });
-        }
+        // fn handleBestMove(self: *Self) !void {
+        //     if (self.tree.root.children.len == 0) {
+        //         std.debug.print("handleBestMove with no children: extentions {d}\n", .{self.tree.root.n_expansions});
+        //         unreachable;
+        //     }
+        //     const node = self.tree.bestNode();
+        //     var buf: [7]u8 = undefined;
+        //     try std.io.getStdOut().writer().print("best-move move={s}; terminal={any}; score={d}\n", .{
+        //         node.move.str(&buf),
+        //         node.move.terminal,
+        //         node.score,
+        //     });
+        // }
 
         fn handleInfo(self: *Self) !void {
-            try std.io.getStdOut().writer().print("extentions {d}\n", .{self.tree.root.n_extentions});
-        }
-
-        fn handleGo(self: *Self) void {
-            print("running\n", .{});
-            self.running = true;
+            try std.io.getStdOut().writer().print("info extentions={d}\n", .{self.tree.root.n_expansions});
         }
 
         fn handleStop(self: *Self) void {
-            print("stopped\n", .{});
+            std.debug.print("stopped\n", .{});
             self.running = false;
         }
 
@@ -113,7 +137,7 @@ pub fn Engine(Tree: type, Game: type) type {
         }
 
         fn replyError(message: []const u8) !void {
-            try std.io.getStdOut().writer().print("ERROR: {s}\n", .{message});
+            try std.io.getStdOut().writer().print("error message={s}\n", .{message});
         }
     };
 }
