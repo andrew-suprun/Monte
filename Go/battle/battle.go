@@ -13,6 +13,17 @@ import (
 	"monte/ui"
 )
 
+type runner struct {
+	procs  [2]proc
+	uiChan chan<- ui.Command
+}
+
+type proc struct {
+	name string
+	in   *bufio.Reader
+	out  io.WriteCloser
+}
+
 func main() {
 	if len(os.Args) != 3 {
 		fmt.Println("Usage: battle <engine1> <engine1>")
@@ -33,10 +44,8 @@ func main() {
 	ch := make(chan ui.Command)
 
 	r := runner{
-		procs:         procs,
-		currentProcId: 0,
-		ticker:        time.Tick(2000 * time.Millisecond),
-		uiChan:        ch,
+		procs:  procs,
+		uiChan: ch,
 	}
 	go r.run()
 	ui.Run(ch)
@@ -51,66 +60,78 @@ func (r *runner) run() {
 	r.procs[0].send("move i9+i11")
 	r.procs[1].send("move i9+i11")
 	r.uiChan <- ui.Move("i9+i11")
-	for !r.reset {
-		select {
-		case msg := <-r.procs[0].in:
-			r.handleMessage(msg, 0)
-		case msg := <-r.procs[1].in:
-			r.handleMessage(msg, 1)
-		case <-r.ticker:
-			r.handleTick()
-		}
-	}
-}
 
-type proc struct {
-	name string
-	in   chan string
-	out  io.WriteCloser
-	err  io.ReadCloser
+	procId := 0
+mainLoop:
+	for {
+		proc := &r.procs[procId]
+		start := time.Now()
+		var bestMove events.BestMove
+
+	waitForTimer:
+		for time.Since(start) < 5*time.Second {
+			proc.send("expand 1000")
+			line, err := proc.read()
+			if err != nil {
+				fmt.Printf("Failed to read procs stdout: %v`\n", err)
+			}
+		waitForReply:
+			for {
+				event, err := events.ParseEvent(line)
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+				switch event := event.(type) {
+				case events.BestMove:
+					bestMove = event
+					// fmt.Printf("proc %d: %q\n", procId, line)
+					break waitForReply
+				default:
+					fmt.Printf("Unrecognized event: %v\n", event)
+				}
+			}
+			if bestMove.Conclusive {
+				break waitForTimer
+			}
+		}
+
+		r.uiChan <- ui.Move(bestMove.Move)
+
+		if bestMove.Terminal {
+			winner := "It's a Draw."
+			if bestMove.Score > 1000 {
+				winner = "Black Won!"
+			} else if bestMove.Score < -1000 {
+				winner = "White Won!"
+			}
+			fmt.Println(winner)
+			break mainLoop
+		}
+
+		r.procs[0].send("move " + bestMove.Move)
+		r.procs[1].send("move " + bestMove.Move)
+		procId = 1 - procId
+	}
 }
 
 func (p *proc) send(f string, a ...any) {
 	str := fmt.Sprintf(f, a...)
-	p.out.Write([]byte(str))
-	p.out.Write([]byte{'\n'})
-}
-
-type runner struct {
-	procs         [2]proc
-	currentProcId int
-	ticker        <-chan time.Time
-	uiChan        chan<- ui.Command
-	reset         bool
-}
-
-func (r *runner) handleMessage(msg string, procId int) {
-	fmt.Printf("Proc %d: %q\n", procId, msg)
-	event, err := events.ParseEvent(msg)
+	_, err := p.out.Write([]byte(str))
 	if err != nil {
-		fmt.Printf("Error %v | proc %d\n", err.Error(), procId)
-		return
+		panic(err)
 	}
-	switch event := event.(type) {
-	case events.BestMove:
-		r.currentProcId = procId
-		// r.uiChan <- ui.Move(event.Move)
-
-		if event.Terminal {
-			winner := "It's a Draw"
-			if event.Score > 1000 {
-				winner = "Black won"
-			} else if event.Score < -1000 {
-				winner = "White won"
-			}
-			fmt.Println(winner)
-			r.reset = true
-		}
+	_, err = p.out.Write([]byte{'\n'})
+	if err != nil {
+		panic(err)
 	}
+	// fmt.Printf("proc: sent %q\n", str)
 }
 
-func (r *runner) handleTick() {
-	// r.procs[1-r.currentProcId].send("best-move")
+func (p *proc) read() (string, error) {
+	result, err := p.in.ReadString('\n')
+	// fmt.Printf("proc: got %q, err %v\n", result, err)
+	return result, err
 }
 
 func startProc(name string) (proc, error) {
@@ -127,25 +148,8 @@ func startProc(name string) (proc, error) {
 	writer, _ := cmd.StdinPipe()
 	reader, _ := cmd.StdoutPipe()
 	err, _ := cmd.StderrPipe()
-	ch := make(chan string, 20)
-	go read(reader, ch)
 	go readErr(err)
-	return proc{name: name, in: ch, out: writer, err: err}, cmd.Start()
-}
-
-func read(reader io.ReadCloser, ch chan string) {
-	bufReader := bufio.NewReader(reader)
-	for {
-		line, err := bufReader.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "ERROR: ", err)
-			break
-		}
-		ch <- line
-	}
+	return proc{name: name, in: bufio.NewReader(reader), out: writer}, cmd.Start()
 }
 
 func readErr(errs io.ReadCloser) {

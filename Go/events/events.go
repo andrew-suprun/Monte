@@ -7,9 +7,11 @@ import (
 )
 
 type BestMove struct {
-	Move     string
-	Terminal bool
-	Score    int
+	Move       string
+	Conclusive bool
+	Terminal   bool
+	Score      int
+	expansions int
 }
 
 type Info map[string]string
@@ -44,6 +46,16 @@ func ParseEvent(text string) (any, error) {
 			case "move":
 				event.Move = values[1]
 
+			case "conclusive":
+				switch values[1] {
+				case "true":
+					event.Conclusive = true
+				case "false":
+					event.Conclusive = false
+				default:
+					return nil, ParseError{Text: text, Message: errors.New("invalid best-move 'conclusive' best-move parameter")}
+				}
+
 			case "terminal":
 				switch values[1] {
 				case "true":
@@ -58,6 +70,12 @@ func ParseEvent(text string) (any, error) {
 				_, err := fmt.Sscanf(values[1], "%d", &event.Score)
 				if err != nil {
 					return nil, ParseError{Text: text, Message: fmt.Errorf("invalid best-move 'score' parameter: %q: %w", values[1], err)}
+				}
+
+			case "expansions":
+				_, err := fmt.Sscanf(values[1], "%d", &event.expansions)
+				if err != nil {
+					return nil, ParseError{Text: text, Message: fmt.Errorf("invalid best-move 'expansions' parameter: %q: %w", values[1], err)}
 				}
 
 			default:

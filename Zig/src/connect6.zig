@@ -5,8 +5,8 @@ const std = @import("std");
 const debug = @import("builtin").mode == std.builtin.OptimizeMode.Debug;
 
 pub const board_size: comptime_int = 19;
-pub const max_moves: comptime_int = if (debug) 6 else 100;
-pub const max_places: comptime_int = if (debug) 6 else 50;
+pub const max_moves: comptime_int = if (debug) 6 else 200;
+pub const max_places: comptime_int = if (debug) 6 else 100;
 
 const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 

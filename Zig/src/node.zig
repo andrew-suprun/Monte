@@ -168,7 +168,7 @@ pub fn Node(Game: type) type {
             std.debug.print(" | player: {s}", .{self.player.str()});
             std.debug.print(" | score: {d}", .{self.score});
             std.debug.print(" | conclusive: {any}", .{self.conclusive});
-            std.debug.print(" | extentions: {d}", .{self.n_expansions});
+            std.debug.print(" | expansions: {d}", .{self.n_expansions});
             std.debug.print(" | children {d}", .{self.children.len});
         }
 

@@ -2,9 +2,18 @@
 * Raylib GUI
 
 # Zig:
-* rename score to move_score and node_score
-* change Place{x:u8, y:u8} to Place{u8, u8}
-* add randomness to bestMove()
-* fine tune C6.calcScore()
-* fine tune max_moves / max_places
+* fine-tune exploration factor
+* fine-tune max_moves / max_places
+* fine-tune C6.calcScore()
 * multithreading
+
+# Languages to Consider
+* Go
+* Rust
+* Julia
+* Swift
+* Odin
+* Chapel
+* Mojo
+* Carbon
+* HyLo
