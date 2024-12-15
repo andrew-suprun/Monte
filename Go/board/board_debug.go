@@ -83,7 +83,6 @@ func (b *Board) rateRow(x, y, dx, dy, n int) (result score.Score) {
 	return result
 }
 
-// 1, 6, 30, 120, 360, 720
 func debugScoreStones(stones Stone) score.Score {
 	switch stones {
 	case 0x00:
@@ -97,7 +96,7 @@ func debugScoreStones(stones Stone) score.Score {
 	case 0x04, 0x40:
 		return 360
 	case 0x05, 0x50:
-		return 720
+		return 10360
 	}
 	return 0
 }

@@ -17,7 +17,6 @@ const (
 	// sixStones   score.Score = 1200
 )
 
-// 1, 6, 30, 120, 360, 720
 func scoreStones(stone, stones Stone) score.Score {
 	if stone == Black {
 		switch stones {
@@ -30,7 +29,7 @@ func scoreStones(stone, stones Stone) score.Score {
 		case 0x03:
 			return 240
 		case 0x04:
-			return 360
+			return 10_000
 		case 0x10:
 			return -6
 		case 0x20:
@@ -59,7 +58,7 @@ func scoreStones(stone, stones Stone) score.Score {
 		case 0x30:
 			return 240
 		case 0x40:
-			return 360
+			return 10_000
 		}
 	}
 	return 0

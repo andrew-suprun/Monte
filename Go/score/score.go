@@ -17,7 +17,7 @@ const (
 
 const (
 	drawScore = 0
-	winScore  = 1200
+	winScore  = 10_000
 )
 
 func (score Score) State() State {
