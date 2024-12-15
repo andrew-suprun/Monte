@@ -3,7 +3,6 @@ package board
 import (
 	"bytes"
 	"fmt"
-	"monte/score"
 )
 
 func (b *Board) validate() {
@@ -27,7 +26,7 @@ func (b *Board) validate() {
 	}
 }
 
-func (b *Board) rateStone(x, y int) (result score.Score) {
+func (b *Board) rateStone(x, y int) (result Score) {
 	{
 		start := max(0, x-maxStones1)
 		end := min(x+maxStones, Size) - maxStones1
@@ -67,7 +66,7 @@ func (b *Board) rateStone(x, y int) (result score.Score) {
 	return result
 }
 
-func (b *Board) rateRow(x, y, dx, dy, n int) (result score.Score) {
+func (b *Board) rateRow(x, y, dx, dy, n int) (result Score) {
 	stones := Stone(0)
 	for i := 0; i < maxStones1; i++ {
 		stones += b.stones[y+i*dy][x+i*dx]
@@ -83,20 +82,20 @@ func (b *Board) rateRow(x, y, dx, dy, n int) (result score.Score) {
 	return result
 }
 
-func debugScoreStones(stones Stone) score.Score {
+func debugScoreStones(stones Stone) Score {
 	switch stones {
 	case 0x00:
-		return 1
+		return oneStone
 	case 0x01, 0x10:
-		return 6
+		return twoStones
 	case 0x02, 0x20:
-		return 30
+		return threeStones
 	case 0x03, 0x30:
-		return 120
+		return fourStones
 	case 0x04, 0x40:
-		return 360
+		return fiveStones
 	case 0x05, 0x50:
-		return 10360
+		return sixStones
 	}
 	return 0
 }
@@ -119,16 +118,15 @@ func (b *Board) debugScoresString(buf *bytes.Buffer) {
 		for x := 0; x < Size; x++ {
 			switch b.stones[y][x] {
 			case None:
-				rate := b.rateStone(x, y)
-				switch rate.State() {
-				case score.Nonterminal:
-					fmt.Fprintf(buf, "%5d", rate)
-				case score.Win:
-					fmt.Fprintf(buf, "  Win")
-				case score.Draw:
-					fmt.Fprintf(buf, " Draw")
+				score := b.rateStone(x, y)
+				if score == 0 {
+					fmt.Fprintf(buf, " <D> ")
+				} else if score <= -sixStones || score >= sixStones {
+					fmt.Fprintf(buf, "  <W>")
+				} else {
+					fmt.Fprintf(buf, "%5d", score)
 				}
-				if rate != b.scores[y][x] {
+				if score != b.scores[y][x] {
 					fmt.Fprint(buf, "#|")
 				} else {
 					fmt.Fprint(buf, " |")

@@ -2,63 +2,61 @@
 
 package board
 
-import "monte/score"
-
 const (
 	maxStones = 6
 )
 
 const (
-	oneStone    score.Score = 1
-	twoStones   score.Score = 5
-	threeStones score.Score = 20
-	fourStones  score.Score = 60
-	fiveStones  score.Score = 1200
-	// sixStones   score.Score = 1200
+	oneStone    Score = 1
+	twoStones   Score = 6
+	threeStones Score = 30
+	fourStones  Score = 120
+	fiveStones  Score = 360
+	sixStones   Score = 10_000
 )
 
-func scoreStones(stone, stones Stone) score.Score {
+func scoreStones(stone, stones Stone) Score {
 	if stone == Black {
 		switch stones {
 		case 0x00:
-			return 5
+			return twoStones - oneStone
 		case 0x01:
-			return 24
+			return threeStones - twoStones
 		case 0x02:
-			return 90
+			return fourStones - threeStones
 		case 0x03:
-			return 240
+			return fiveStones - fourStones
 		case 0x04:
-			return 10_000
+			return sixStones - fiveStones
 		case 0x10:
-			return -6
+			return -twoStones
 		case 0x20:
-			return -30
+			return -threeStones
 		case 0x30:
-			return -120
+			return -fourStones
 		case 0x40:
-			return -360
+			return -fiveStones
 		}
 	} else {
 		switch stones {
 		case 0x00:
-			return 5
+			return twoStones - oneStone
 		case 0x01:
-			return -6
+			return -twoStones
 		case 0x02:
-			return -30
+			return -threeStones
 		case 0x03:
-			return -120
+			return -fourStones
 		case 0x04:
-			return -360
+			return -fiveStones
 		case 0x10:
-			return 24
+			return threeStones - twoStones
 		case 0x20:
-			return 90
+			return fourStones - threeStones
 		case 0x30:
-			return 240
+			return fiveStones - fourStones
 		case 0x40:
-			return 10_000
+			return sixStones - fiveStones
 		}
 	}
 	return 0

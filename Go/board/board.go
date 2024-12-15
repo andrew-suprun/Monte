@@ -3,10 +3,12 @@ package board
 import (
 	"bytes"
 	"fmt"
-	"monte/score"
 )
 
-type Stone byte
+type (
+	Stone byte
+	Score int32
+)
 
 const (
 	None  Stone = 0
@@ -28,7 +30,7 @@ const maxStones1 = maxStones - 1
 
 type Board struct {
 	stones [Size][Size]Stone
-	scores [Size][Size]score.Score
+	scores [Size][Size]Score
 }
 
 func MakeBoard() Board {
@@ -40,7 +42,7 @@ func MakeBoard() Board {
 			m := 1 + min(x, y, Size-1-x, Size-1-y)
 			t1 := max(0, min(maxStones, m, Size-maxStones1-y+x, Size-maxStones1-x+y))
 			t2 := max(0, min(maxStones, m, 2*Size-1-maxStones1-y-x, x+y-maxStones1+1))
-			total := score.Score(v + h + t1 + t2)
+			total := Score(v + h + t1 + t2)
 			board.scores[y][x] = total
 		}
 	}
@@ -55,7 +57,7 @@ func (b *Board) RemoveStone(stone Stone, x, y int) {
 	b.placeStone(stone, x, y, -1)
 }
 
-func (b *Board) placeStone(stone Stone, x, y int, coeff score.Score) {
+func (b *Board) placeStone(stone Stone, x, y int, coeff Score) {
 	if coeff == -1 {
 		b.stones[y][x] = None
 	}
@@ -99,10 +101,10 @@ func (b *Board) placeStone(stone Stone, x, y int, coeff score.Score) {
 	if coeff == 1 {
 		b.stones[y][x] = stone
 	}
-	b.validate() //TODO
+	b.validate()
 }
 
-func (b *Board) updateRow(stone Stone, x, y, dx, dy, n int, coeff score.Score) {
+func (b *Board) updateRow(stone Stone, x, y, dx, dy, n int, coeff Score) {
 	// fmt.Printf("updateRow: %v [%d:%d] [%d:%d] n: %d\n", stone, x, y, dx, dy, n)
 	stones := Stone(0)
 	for i := 0; i < maxStones1; i++ {
@@ -222,13 +224,13 @@ func (b *Board) ScoresString(buf *bytes.Buffer) {
 		for x := 0; x < Size; x++ {
 			switch b.stones[y][x] {
 			case None:
-				switch b.scores[y][x].State() {
-				case score.Nonterminal:
-					fmt.Fprintf(buf, "%5d │", b.scores[y][x])
-				case score.Win:
-					fmt.Fprintf(buf, "  <W> │")
-				case score.Draw:
+				score := b.scores[y][x]
+				if score == 0 {
 					fmt.Fprintf(buf, "  <D> │")
+				} else if score <= -sixStones || score >= sixStones {
+					fmt.Fprintf(buf, "  <W> │")
+				} else {
+					fmt.Fprintf(buf, "%5d │", b.scores[y][x])
 				}
 			case Black:
 				buf.WriteString("    X │")
