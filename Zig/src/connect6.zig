@@ -12,7 +12,7 @@ const Stone = enum(u8) { none = 0x00, black = 0x01, white = 0x10 };
 
 pub const Move = struct {
     places: [2]Place,
-    terminal: bool = false,
+    terminal: bool,
     score: i32,
 
     pub fn eql(self: @This(), other: @This()) bool {
@@ -78,33 +78,49 @@ const Scores = [board_size][board_size]i32;
 
 pub fn initMove(self: *Self, note: []const u8) !Move {
     var place_tokens = std.mem.tokenizeScalar(u8, note, '+');
-    const places: [2]Place = .{
+    return self.initMoveFromPlaces(
         try parseToken(place_tokens.next()),
         try parseToken(place_tokens.next()),
-    };
-    return self.initMoveFromPlaces(places);
+    );
 }
 
-pub fn initMoveFromPlaces(self: *Self, places: [2]Place) Move {
-    const player = self.nextStone();
-    const score1 = if (player == .black)
-        self.ratePlace(places[0], .black)
+pub fn initMoveFromPlaces(self: *Self, place0: Place, place1: Place) Move {
+    const stone = self.nextStone();
+    const score1 = if (stone == .black)
+        self.ratePlace(place0, .black)
     else
-        self.ratePlace(places[0], .white);
-    const score2 = if (!places[0].eql(places[1])) blk: {
-        self.board[places[0].y][places[0].x] = player;
-        defer self.board[places[0].y][places[0].x] = .none;
+        self.ratePlace(place0, .white);
+    const score2 = if (!place0.eql(place1)) blk: {
+        self.board[place0.y][place0.x] = stone;
+        defer self.board[place0.y][place0.x] = .none;
 
-        break :blk if (player == .black)
-            self.ratePlace(places[1], .black)
+        break :blk if (stone == .black)
+            self.ratePlace(place1, .black)
         else
-            self.ratePlace(places[1], .white);
+            self.ratePlace(place1, .white);
     } else 0;
-    return Move{
-        .places = sortPlaces(places[0], places[1]),
-        .score = score1 + score2,
-        .terminal = @abs(score1 + score2) > 1024,
-    };
+
+    return initMoveWithScore(place0, place1, score1 + score2);
+}
+
+inline fn initMoveWithScore(place0: Place, place1: Place, score: i32) Move {
+    const sorted_places = sortPlaces(place0, place1);
+    if (score == 0) {
+        return Move{ .places = sorted_places, .score = 0, .terminal = true };
+    } else if (score >= six_stones) {
+        return Move{ .places = sorted_places, .score = six_stones, .terminal = true };
+    } else if (score <= -six_stones) {
+        return Move{ .places = sorted_places, .score = -six_stones, .terminal = true };
+    } else {
+        return Move{ .places = sorted_places, .score = score, .terminal = false };
+    }
+}
+
+fn sortPlaces(p1: Place, p2: Place) [2]Place {
+    return if (p1.x < p2.x or p1.x == p2.x and p1.y > p2.y)
+        [2]Place{ p1, p2 }
+    else
+        [2]Place{ p2, p1 };
 }
 
 fn parseToken(maybe_token: ?[]const u8) !Place {
@@ -158,8 +174,8 @@ pub fn possibleMoves(self: *Self, buf: []Move) []Move {
     }
 }
 
-fn possiblePlaces(self: Self, comptime player: Stone, scores: Scores, place_list: []Place) []Place {
-    var heap = if (player == .black) HeapPlaceBlack.init(scores) else HeapPlaceWhite.init(scores);
+fn possiblePlaces(self: Self, comptime stone: Stone, scores: Scores, place_list: []Place) []Place {
+    var heap = if (stone == .black) HeapPlaceBlack.init(scores) else HeapPlaceWhite.init(scores);
     for (0..board_size) |y| {
         for (0..board_size) |x| {
             if (self.board[y][x] == .none) {
@@ -170,54 +186,45 @@ fn possiblePlaces(self: Self, comptime player: Stone, scores: Scores, place_list
     return heap.sorted(place_list); // TODO: unsorted
 }
 
-fn selectMoves(self: *Self, comptime player: Stone, scores: Scores, place_list: []Place, buf: []Move) []Move {
-    var heap = if (player == .black) HeapBlack.init({}) else HeapWhite.init({});
+fn selectMoves(self: *Self, comptime stone: Stone, scores: Scores, place_list: []Place, buf: []Move) []Move {
+    var heap = if (stone == .black) HeapBlack.init({}) else HeapWhite.init({});
 
     if (scores[place_list[0].y][place_list[0].x] == 0) {
-        buf[0] = Move{
-            .places = sortPlaces(place_list[0], place_list[1]),
-            .score = 0,
-            .terminal = true,
-        };
+        buf[0] = initMoveWithScore(place_list[0], place_list[0], 0);
         return buf[0..1];
     }
 
     for (place_list[0 .. place_list.len - 1], 0..) |p1, i| {
         const score1 = scores[p1.y][p1.x];
-        if (@abs(score1) > 1024)
+        if (@abs(score1) > six_stones)
             return winningMove(p1, p1, score1, buf);
 
         for (i + 1..place_list.len) |j| {
             var score2: i32 = undefined;
             const p2 = place_list[j];
             if (p1.x == p2.x or p1.y == p2.y or p1.x + p1.y == p2.x + p2.y or p1.x + p2.y == p2.x + p1.y) {
-                self.board[p1.y][p1.x] = player;
-                score2 = self.ratePlace(p2, player);
+                self.board[p1.y][p1.x] = stone;
+                score2 = self.ratePlace(p2, stone);
                 self.board[p1.y][p1.x] = .none;
             } else {
                 score2 = scores[p2.y][p2.x];
             }
 
-            if (@abs(score2) > 1024)
+            if (@abs(score2) >= six_stones)
                 return winningMove(p1, p2, score2, buf);
 
-            heap.add(Move{
-                .places = sortPlaces(p1, p2),
-                .score = score1 + score2,
-            });
+            heap.add(initMoveWithScore(p1, p2, score1 + score2));
         }
     }
     return heap.sorted(buf); // TODO: unsorted
 }
 
-fn sortPlaces(p1: Place, p2: Place) [2]Place {
-    return if (p1.x < p2.x or p1.x == p2.x and p1.y > p2.y)
-        [2]Place{ p1, p2 }
-    else
-        [2]Place{ p2, p1 };
+fn winningMove(p1: Place, p2: Place, score: i32, buf: []Move) []Move {
+    buf[0] = initMoveWithScore(p1, p2, score);
+    return buf[0..1];
 }
 
-fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
+fn ratePlace(self: Self, place: Place, comptime stone: Stone) i32 {
     const x = place.x;
     const y = place.y;
     var score: i32 = 0;
@@ -225,28 +232,28 @@ fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
     {
         const start_x: usize = @max(x, 5) - 5;
         const end_x: usize = @min(x + 1, board_size - 5);
-        var players: i32 = @intFromEnum(self.board[y][start_x]);
+        var stones: i32 = @intFromEnum(self.board[y][start_x]);
         for (1..5) |i| {
-            players += @intFromEnum(self.board[y][start_x + i]);
+            stones += @intFromEnum(self.board[y][start_x + i]);
         }
         for (start_x..end_x) |dx| {
-            players += @intFromEnum(self.board[y][dx + 5]);
-            score += calcScore(player, players);
-            players -= @intFromEnum(self.board[y][dx]);
+            stones += @intFromEnum(self.board[y][dx + 5]);
+            score += calcScore(stone, stones);
+            stones -= @intFromEnum(self.board[y][dx]);
         }
     }
 
     {
         const start_y: usize = @max(y, 5) - 5;
         const end_y: usize = @min(y + 1, board_size - 5);
-        var players: i32 = @intFromEnum(self.board[start_y][x]);
+        var stones: i32 = @intFromEnum(self.board[start_y][x]);
         for (1..5) |i| {
-            players += @intFromEnum(self.board[start_y + i][x]);
+            stones += @intFromEnum(self.board[start_y + i][x]);
         }
         for (start_y..end_y) |dy| {
-            players += @intFromEnum(self.board[dy + 5][x]);
-            score += calcScore(player, players);
-            players -= @intFromEnum(self.board[dy][x]);
+            stones += @intFromEnum(self.board[dy + 5][x]);
+            score += calcScore(stone, stones);
+            stones -= @intFromEnum(self.board[dy][x]);
         }
     }
 
@@ -260,14 +267,14 @@ fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
         const start_y = y - min;
         const count = @min(min + 1, board_size - max, board_size - 5 + min - max);
 
-        var players: i32 = @intFromEnum(self.board[start_y][start_x]);
+        var stones: i32 = @intFromEnum(self.board[start_y][start_x]);
         for (1..5) |i| {
-            players += @intFromEnum(self.board[start_y + i][start_x + i]);
+            stones += @intFromEnum(self.board[start_y + i][start_x + i]);
         }
         for (start_x.., start_y.., 0..count) |xx, yy, _| {
-            players += @intFromEnum(self.board[yy + 5][xx + 5]);
-            score += calcScore(player, players);
-            players -= @intFromEnum(self.board[yy][xx]);
+            stones += @intFromEnum(self.board[yy + 5][xx + 5]);
+            score += calcScore(stone, stones);
+            stones -= @intFromEnum(self.board[yy][xx]);
         }
     }
 
@@ -282,30 +289,21 @@ fn ratePlace(self: Self, place: Place, comptime player: Stone) i32 {
         const start_y = y - min;
         const count = @min(min + 1, board_size - max, board_size - 5 + min - max);
 
-        var players: i32 = @intFromEnum(self.board[start_y][start_x]);
+        var stones: i32 = @intFromEnum(self.board[start_y][start_x]);
         for (1..5) |i| {
-            players += @intFromEnum(self.board[start_y + i][start_x - i]);
+            stones += @intFromEnum(self.board[start_y + i][start_x - i]);
         }
         for (0..count) |c| {
-            players += @intFromEnum(self.board[start_y + 5 + c][start_x - 5 - c]);
-            score += calcScore(player, players);
-            players -= @intFromEnum(self.board[start_y + c][start_x - c]);
+            stones += @intFromEnum(self.board[start_y + 5 + c][start_x - 5 - c]);
+            score += calcScore(stone, stones);
+            stones -= @intFromEnum(self.board[start_y + c][start_x - c]);
         }
     }
 
     return score;
 }
 
-fn winningMove(p1: Place, p2: Place, score: i32, buf: []Move) []Move {
-    buf[0] = Move{
-        .places = sortPlaces(p1, p2),
-        .terminal = true,
-        .score = score,
-    };
-    return buf[0..1];
-}
-
-fn calcScores(self: Self, comptime player: Stone) Scores {
+fn calcScores(self: Self, comptime stone: Stone) Scores {
     var scores = [1][board_size]i32{[1]i32{0} ** board_size} ** board_size;
 
     for (0..board_size) |a| {
@@ -318,8 +316,8 @@ fn calcScores(self: Self, comptime player: Stone) Scores {
         for (0..board_size - 5) |b| {
             hStones += @intFromEnum(self.board[a][b + 5]);
             vStones += @intFromEnum(self.board[b + 5][a]);
-            const eScore = calcScore(player, hStones);
-            const sScore = calcScore(player, vStones);
+            const eScore = calcScore(stone, hStones);
+            const sScore = calcScore(stone, vStones);
             inline for (0..6) |c| {
                 scores[a][b + c] += eScore;
                 scores[b + c][a] += sScore;
@@ -346,10 +344,10 @@ fn calcScores(self: Self, comptime player: Stone) Scores {
             neStones += @intFromEnum(self.board[b + 5][a + b + 5]);
             nwStones += @intFromEnum(self.board[board_size - 6 - a - b][b + 5]);
             seStones += @intFromEnum(self.board[a + b + 5][board_size - 6 - b]);
-            const swScore = calcScore(player, swStones);
-            const neScore = calcScore(player, neStones);
-            const nwScore = calcScore(player, nwStones);
-            const seScore = calcScore(player, seStones);
+            const swScore = calcScore(stone, swStones);
+            const neScore = calcScore(stone, neStones);
+            const nwScore = calcScore(stone, nwStones);
+            const seScore = calcScore(stone, seStones);
             inline for (0..6) |c| {
                 scores[a + b + c][b + c] += swScore;
                 scores[b + c][a + b + c] += neScore;
@@ -362,6 +360,7 @@ fn calcScores(self: Self, comptime player: Stone) Scores {
             seStones -= @intFromEnum(self.board[a + b][board_size - 1 - b]);
         }
     }
+
     var nwseStones: i32 = @intFromEnum(self.board[0][0]);
     var neswStones: i32 = @intFromEnum(self.board[0][board_size - 1]);
     for (1..5) |a| {
@@ -371,8 +370,8 @@ fn calcScores(self: Self, comptime player: Stone) Scores {
     for (0..board_size - 5) |b| {
         nwseStones += @intFromEnum(self.board[b + 5][b + 5]);
         neswStones += @intFromEnum(self.board[b + 5][board_size - 6 - b]);
-        const nwseScore = calcScore(player, nwseStones);
-        const neswScore = calcScore(player, neswStones);
+        const nwseScore = calcScore(stone, nwseStones);
+        const neswScore = calcScore(stone, neswStones);
         inline for (0..6) |c| {
             scores[b + c][b + c] += nwseScore;
             scores[b + c][board_size - 1 - b - c] += neswScore;
@@ -383,6 +382,7 @@ fn calcScores(self: Self, comptime player: Stone) Scores {
     return scores;
 }
 
+// TODO should work by just comparing by scores
 const HeapBlack = @import("heap.zig").Heap(Move, void, cmpBlack, max_moves);
 fn cmpBlack(_: void, a: Move, b: Move) bool {
     if (a.score < b.score) return true;
@@ -397,6 +397,7 @@ fn cmpWhite(_: void, a: Move, b: Move) bool {
     return cmpBlack({}, b, a);
 }
 
+// TODO should work by just comparing by scores
 const HeapPlaceBlack = @import("heap.zig").Heap(Place, Scores, cmpPlaceBlack, max_places);
 fn cmpPlaceBlack(scores: Scores, a: Place, b: Place) bool {
     if (scores[a.y][a.x] < scores[b.y][b.x]) return true;
@@ -413,41 +414,41 @@ inline fn nextStone(self: Self) Stone {
     return if (self.n_moves % 2 == 0) .black else .white;
 }
 
-const one_player = 1;
-const two_players = 5;
-const three_players = 20;
-const four_players = 60;
-const five_players = 120;
-const six_players = 2048;
+const one_stone = 1;
+const two_stones = 5;
+const three_stones = 20;
+const four_stones = 60;
+const five_stones = 120;
+const six_stones = 1000;
 
-fn calcScore(comptime player: Stone, stones: i32) i32 {
-    return if (player == .black)
+fn calcScore(comptime stone: Stone, stones: i32) i32 {
+    return if (stone == .black)
         switch (stones) {
-            0x00 => one_player,
-            0x01 => two_players - one_player,
-            0x02 => three_players - two_players,
-            0x03 => four_players - three_players,
-            0x04 => five_players - four_players,
-            0x05 => six_players,
-            0x10 => one_player,
-            0x20 => two_players,
-            0x30 => three_players,
-            0x40 => four_players,
-            0x50 => five_players,
+            0x00 => one_stone,
+            0x01 => two_stones - one_stone,
+            0x02 => three_stones - two_stones,
+            0x03 => four_stones - three_stones,
+            0x04 => five_stones - four_stones,
+            0x05 => six_stones,
+            0x10 => one_stone,
+            0x20 => two_stones,
+            0x30 => three_stones,
+            0x40 => four_stones,
+            0x50 => five_stones,
             else => 0,
         }
     else switch (stones) {
-        0x00 => -one_player,
-        0x01 => -one_player,
-        0x02 => -two_players,
-        0x03 => -three_players,
-        0x04 => -four_players,
-        0x05 => -five_players,
-        0x10 => one_player - two_players,
-        0x20 => two_players - three_players,
-        0x30 => three_players - four_players,
-        0x40 => four_players - five_players,
-        0x50 => -six_players,
+        0x00 => -one_stone,
+        0x01 => -one_stone,
+        0x02 => -two_stones,
+        0x03 => -three_stones,
+        0x04 => -four_stones,
+        0x05 => -five_stones,
+        0x10 => one_stone - two_stones,
+        0x20 => two_stones - three_stones,
+        0x30 => three_stones - four_stones,
+        0x40 => four_stones - five_stones,
+        0x50 => -six_stones,
         else => 0,
     };
 }
@@ -456,78 +457,78 @@ pub fn scoreBoard(self: Self) i32 {
     var result: i32 = 0;
 
     for (0..board_size) |a| {
-        var h_players: i32 = 0;
-        var v_players: i32 = 0;
+        var h_stones: i32 = 0;
+        var v_stones: i32 = 0;
 
         for (0..5) |b| {
-            h_players += @intFromEnum(self.board[a][b]);
-            v_players += @intFromEnum(self.board[b][a]);
+            h_stones += @intFromEnum(self.board[a][b]);
+            v_stones += @intFromEnum(self.board[b][a]);
         }
         for (5..board_size) |b| {
-            h_players += @intFromEnum(self.board[a][b]);
-            result += debugRate(h_players);
-            h_players -= @intFromEnum(self.board[a][b - 5]);
+            h_stones += @intFromEnum(self.board[a][b]);
+            result += debugRate(h_stones);
+            h_stones -= @intFromEnum(self.board[a][b - 5]);
 
-            v_players += @intFromEnum(self.board[b][a]);
-            result += debugRate(v_players);
-            v_players -= @intFromEnum(self.board[b - 5][a]);
+            v_stones += @intFromEnum(self.board[b][a]);
+            result += debugRate(v_stones);
+            v_stones -= @intFromEnum(self.board[b - 5][a]);
         }
     }
 
     for (0..board_size - 5) |y| {
-        var sw_players: i32 = 0;
-        var se_players: i32 = 0;
+        var sw_stones: i32 = 0;
+        var se_stones: i32 = 0;
 
         for (0..5) |i| {
-            sw_players += @intFromEnum(self.board[y + i][i]);
-            se_players += @intFromEnum(self.board[y + i][board_size - 1 - i]);
+            sw_stones += @intFromEnum(self.board[y + i][i]);
+            se_stones += @intFromEnum(self.board[y + i][board_size - 1 - i]);
         }
         for (5..board_size - y) |i| {
-            sw_players += @intFromEnum(self.board[y + i][i]);
-            result += debugRate(sw_players);
-            sw_players -= @intFromEnum(self.board[y + i - 5][i - 5]);
+            sw_stones += @intFromEnum(self.board[y + i][i]);
+            result += debugRate(sw_stones);
+            sw_stones -= @intFromEnum(self.board[y + i - 5][i - 5]);
 
-            se_players += @intFromEnum(self.board[y + i][board_size - 1 - i]);
-            result += debugRate(se_players);
-            se_players -= @intFromEnum(self.board[y + i - 5][board_size + 4 - i]);
+            se_stones += @intFromEnum(self.board[y + i][board_size - 1 - i]);
+            result += debugRate(se_stones);
+            se_stones -= @intFromEnum(self.board[y + i - 5][board_size + 4 - i]);
         }
     }
 
     for (1..board_size - 5) |x| {
-        var ne_players: i32 = 0;
-        var nw_players: i32 = 0;
+        var ne_stones: i32 = 0;
+        var nw_stones: i32 = 0;
 
         for (0..5) |i| {
-            ne_players += @intFromEnum(self.board[i][x + i]);
-            nw_players += @intFromEnum(self.board[i][board_size - 1 - x - i]);
+            ne_stones += @intFromEnum(self.board[i][x + i]);
+            nw_stones += @intFromEnum(self.board[i][board_size - 1 - x - i]);
         }
 
         for (5..board_size - x) |i| {
-            ne_players += @intFromEnum(self.board[i][x + i]);
-            result += debugRate(ne_players);
-            ne_players -= @intFromEnum(self.board[i - 5][x + i - 5]);
+            ne_stones += @intFromEnum(self.board[i][x + i]);
+            result += debugRate(ne_stones);
+            ne_stones -= @intFromEnum(self.board[i - 5][x + i - 5]);
 
-            nw_players += @intFromEnum(self.board[i][board_size - 1 - x - i]);
-            result += debugRate(nw_players);
-            nw_players -= @intFromEnum(self.board[i - 5][board_size + 4 - x - i]);
+            nw_stones += @intFromEnum(self.board[i][board_size - 1 - x - i]);
+            result += debugRate(nw_stones);
+            nw_stones -= @intFromEnum(self.board[i - 5][board_size + 4 - x - i]);
         }
     }
 
     return result;
 }
 
-fn debugRate(players: i32) i32 {
-    return switch (players) {
-        0x01 => one_player,
-        0x02 => two_players,
-        0x03 => three_players,
-        0x04 => four_players,
-        0x05 => five_players,
-        0x10 => -one_player,
-        0x20 => -two_players,
-        0x30 => -three_players,
-        0x40 => -four_players,
-        0x50 => -five_players,
+fn debugRate(stones: i32) i32 {
+    return switch (stones) {
+        0x01 => one_stone,
+        0x02 => two_stones,
+        0x03 => three_stones,
+        0x04 => four_stones,
+        0x05 => five_stones,
+        0x10 => -one_stone,
+        0x20 => -two_stones,
+        0x30 => -three_stones,
+        0x40 => -four_stones,
+        0x50 => -five_stones,
         else => 0,
     };
 }
@@ -649,10 +650,10 @@ test "placeStone" {
     for (1..100) |_| {
         const x: usize = @intCast(rng.next() % board_size);
         const y: usize = @intCast(rng.next() % board_size);
-        const player: Stone = if (rng.next() % 2 == 0) .black else .white;
+        const stone: Stone = if (rng.next() % 2 == 0) .black else .white;
         if (game.board[y][x] != .none) continue;
-        score += if (player == .black) game.ratePlace(Place.init(x, y), .black) else game.ratePlace(Place.init(x, y), .white);
-        game.board[y][x] = player;
+        score += if (stone == .black) game.ratePlace(Place.init(x, y), .black) else game.ratePlace(Place.init(x, y), .white);
+        game.board[y][x] = stone;
         const score2 = game.scoreBoard();
         try std.testing.expectEqual(score2, score);
     }
@@ -666,11 +667,11 @@ test "calcScores" {
     for (1..100) |_| {
         const x: usize = @intCast(rng.next() % board_size);
         const y: usize = @intCast(rng.next() % board_size);
-        const player: Stone = if (rng.next() % 2 == 0) .black else .white;
+        const stone: Stone = if (rng.next() % 2 == 0) .black else .white;
         if (game.board[y][x] != .none) continue;
-        const scores = if (player == .black) game.calcScores(.black) else game.calcScores(.white);
+        const scores = if (stone == .black) game.calcScores(.black) else game.calcScores(.white);
         score += scores[y][x];
-        game.board[y][x] = player;
+        game.board[y][x] = stone;
         const score2 = game.scoreBoard();
         try std.testing.expectEqual(score2, score);
     }
@@ -687,11 +688,11 @@ test "bench-calcScores" {
         for (1..100) |_| {
             const x: usize = @intCast(rng.next() % board_size);
             const y: usize = @intCast(rng.next() % board_size);
-            const player: Stone = if (rng.next() % 2 == 0) .black else .white;
+            const stone: Stone = if (rng.next() % 2 == 0) .black else .white;
             if (game.board[y][x] != .none) continue;
-            const scores = if (player == .black) game.calcScores(.black) else game.calcScores(.white);
+            const scores = if (stone == .black) game.calcScores(.black) else game.calcScores(.white);
             score += scores[y][x];
-            game.board[y][x] = player;
+            game.board[y][x] = stone;
         }
     }
     std.mem.doNotOptimizeAway(score);

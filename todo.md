@@ -1,19 +1,13 @@
 # Go:
-* Raylib GUI
-
-# Zig:
-* fine-tune exploration factor
-* fine-tune max_moves / max_places
-* fine-tune C6.calcScore()
-* multithreading
+* Back to MCTS
 
 # Languages to Consider
+* Chapel
 * Go
 * Rust
 * Julia
 * Swift
 * Odin
-* Chapel
 * Mojo
 * Carbon
 * HyLo

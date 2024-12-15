@@ -27,7 +27,7 @@ pub fn main() !void {
             }
             tree.expand(&game);
         }
-        move = tree.bestMove();
+        move = tree.bestNode().move;
         std.debug.print("\n", .{});
         move.print();
         tree.root.debugPrintChildren();
@@ -65,7 +65,7 @@ test "makeMove" {
             selected += 1;
         }
 
-        move = game.initMoveFromPlaces(places);
+        move = game.initMoveFromPlaces(places[0], places[1]);
         tree.makeMove(&game, move);
 
         tree.debugSelfCheck(game);
@@ -80,12 +80,13 @@ test "expand" {
     var game = C6{};
     var move = try game.initMove("j10+j10");
     tree.makeMove(&game, move);
+    std.debug.print("\nacc = {d}\n", .{tree.acc});
 
-    move = try game.initMove("i9+i10");
+    move = try game.initMove("i9+i11");
     tree.makeMove(&game, move);
+    std.debug.print("acc = {d}\n", .{tree.acc});
 
     for (0..30) |i| {
-        tree.debugPrint();
         tree.expand(&game);
         std.debug.print("\n----\n expand {}", .{i});
         tree.debugPrint();

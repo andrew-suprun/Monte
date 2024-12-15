@@ -53,8 +53,12 @@ pub fn SearchTree(Game: type) type {
             node.children = self.allocator.alloc(Node, child_moves.len) catch unreachable;
             for (node.children, child_moves) |*child, move| {
                 child.* = Node{ .player = next_player, .move = move };
-                child.score = @divTrunc(move.score, 2) + acc;
                 child.conclusive = move.terminal;
+                if (move.terminal) {
+                    child.score = move.score;
+                } else {
+                    child.score = @divTrunc(move.score, 2) + acc;
+                }
             }
         }
 
