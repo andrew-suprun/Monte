@@ -13,10 +13,6 @@ type (
 	Score  int32
 )
 
-func (score Score) IsDrawing() bool {
-	return score == 0
-}
-
 const (
 	None  Stone = 0x00
 	Black Stone = 0x01
@@ -55,6 +51,14 @@ func MakeBoard() Board {
 		}
 	}
 	return board
+}
+
+func (b *Board) Stone(x, y int) Stone {
+	return b.stones[y][x]
+}
+
+func (b *Board) Score(stone Stone, x, y int) (Score, Stone) {
+	return b.scores[y][x], b.winners[y][x]
 }
 
 func (b *Board) IsWinning(turn Stone, x, y int) bool {
@@ -264,7 +268,7 @@ func (b *Board) ScoresString(buf *bytes.Buffer) {
 			switch b.stones[y][x] {
 			case None:
 				score := b.scores[y][x]
-				if score.IsDrawing() {
+				if score == 0 {
 					fmt.Fprintf(buf, "  (D) │")
 				} else if b.IsWinning(Black, x, y) {
 					fmt.Fprintf(buf, "  (B) │")
