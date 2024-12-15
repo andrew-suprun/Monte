@@ -12,99 +12,52 @@ const (
 	threeStones Score = 30
 	fourStones  Score = 120
 	fiveStones  Score = 360
-	sixStones   Score = 10_000
+	sixStones   Score = 720
 )
 
-func scoreStones(stone, stones Stone) Score {
+func scoreStones(stone, stones Stone) (Score, Stone) {
 	if stone == Black {
 		switch stones {
 		case 0x00:
-			return twoStones - oneStone
+			return twoStones - oneStone, None
 		case 0x01:
-			return threeStones - twoStones
+			return threeStones - twoStones, None
 		case 0x02:
-			return fourStones - threeStones
+			return fourStones - threeStones, None
 		case 0x03:
-			return fiveStones - fourStones
+			return fiveStones - fourStones, None
 		case 0x04:
-			return sixStones - fiveStones
+			return sixStones - fiveStones, Black
 		case 0x10:
-			return -twoStones
+			return -twoStones, None
 		case 0x20:
-			return -threeStones
+			return -threeStones, None
 		case 0x30:
-			return -fourStones
+			return -fourStones, None
 		case 0x40:
-			return -fiveStones
+			return -fiveStones, None
 		}
 	} else {
 		switch stones {
 		case 0x00:
-			return twoStones - oneStone
+			return twoStones - oneStone, None
 		case 0x01:
-			return -twoStones
+			return -twoStones, None
 		case 0x02:
-			return -threeStones
+			return -threeStones, None
 		case 0x03:
-			return -fourStones
+			return -fourStones, None
 		case 0x04:
-			return -fiveStones
+			return -fiveStones, None
 		case 0x10:
-			return threeStones - twoStones
+			return threeStones - twoStones, None
 		case 0x20:
-			return fourStones - threeStones
+			return fourStones - threeStones, None
 		case 0x30:
-			return fiveStones - fourStones
+			return fiveStones - fourStones, None
 		case 0x40:
-			return sixStones - fiveStones
+			return sixStones - fiveStones, White
 		}
 	}
-	return 0
+	return 0, None
 }
-
-// func scoreStones(stone, stones Stone) score.Score {
-// 	if stone == Black {
-// 		switch stones {
-// 		case 0x00:
-// 			return 1
-// 		case 0x01:
-// 			return twoStones - oneStone
-// 		case 0x02:
-// 			return threeStones - twoStones
-// 		case 0x03:
-// 			return fourStones - threeStones
-// 		case 0x04:
-// 			return fiveStones - fourStones
-// 		case 0x10:
-// 			return -1
-// 		case 0x20:
-// 			return -twoStones
-// 		case 0x30:
-// 			return -threeStones
-// 		case 0x40:
-// 			return -fourStones
-// 		}
-// 	} else {
-// 		switch stones {
-// 		case 0x00:
-// 			return 1
-// 		case 0x01:
-// 			return -1
-// 		case 0x02:
-// 			return -twoStones
-// 		case 0x03:
-// 			return -threeStones
-// 		case 0x04:
-// 			return -fourStones
-// 		case 0x10:
-// 			return twoStones - oneStone
-// 		case 0x20:
-// 			return threeStones - twoStones
-// 		case 0x30:
-// 			return fourStones - threeStones
-// 		case 0x40:
-// 			return fiveStones - fourStones
-// 		}
-// 	}
-// 	return 0
-// }

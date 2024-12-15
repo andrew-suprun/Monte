@@ -1,0 +1,11 @@
+{
+    "go.buildTags": "debug,connect6",
+    "go.buildFlags": [
+        "-v"
+    ],
+    "go.testTags": "debug,connect6",
+    "go.testTimeout": "2s",
+    "go.testFlags": [
+        "-v"
+    ]
+}
