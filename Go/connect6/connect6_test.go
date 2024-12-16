@@ -9,12 +9,12 @@ import (
 
 func TestRollout(t *testing.T) {
 	scores := [3]int{}
-	game := NewGame()
+	game := MakeGame()
 	game.PlayMove(MakeMove(9, 9, 9, 9))
 	game.PlayMove(MakeMove(0, 0, 1, 0))
 	for i := range int64(4) {
 		fmt.Println("--- Rollout", i)
-		newGame := *game
+		newGame := game
 		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 		rolloutScore := newGame.Rollout(rnd)
 		if rolloutScore == -1 {
@@ -27,9 +27,10 @@ func TestRollout(t *testing.T) {
 	}
 	fmt.Println("scores", scores)
 }
+
 func BenchmarkRollout(b *testing.B) {
 	rnd := rand.New(rand.NewSource(0))
-	game := NewGame()
+	game := MakeGame()
 	game.PlayMove(MakeMove(9, 9, 9, 9))
 	for range b.N {
 		game.Rollout(rnd)

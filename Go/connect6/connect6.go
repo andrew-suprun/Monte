@@ -25,13 +25,19 @@ func (m Move) String() string {
 	return fmt.Sprintf("%c%d-%c%d", x1+'a', board.Size-y1, x2+'a', board.Size-y2)
 }
 
-type Connect6 struct {
-	turn  board.Stone
-	board board.Board
+type rolloutStone struct {
+	turn board.Stone
+	x, y int
 }
 
-func NewGame() *Connect6 {
-	game := &Connect6{
+type Connect6 struct {
+	turn          board.Stone
+	board         board.Board
+	rolloutStones []rolloutStone
+}
+
+func MakeGame() Connect6 {
+	game := Connect6{
 		turn:  board.Black,
 		board: board.MakeBoard(),
 	}
@@ -125,35 +131,44 @@ func (c *Connect6) PossibleMoves(moves *[]Move) {
 }
 
 func (c *Connect6) Rollout(rnd *rand.Rand) float32 {
+	c.rolloutStones = c.rolloutStones[:0]
+	turn := c.turn
 	n := 0
 	for {
 		for range 2 {
 			if n >= 80 {
 				return 0
 			}
-			x, y, score, winner := c.board.BestPlace(c.turn, rnd)
+			x, y, score, winner := c.board.BestPlace(turn, rnd)
 			if winner {
-				//fmt.Printf("-- BestPlace: %v %c%d score %d winner %v\n", c.turn, x+'a', board.Size-y, score, winner)
-				if c.turn == board.Black {
-					// fmt.Println("Winner: Black", "N", n)
+				if turn == board.Black {
+					for i := len(c.rolloutStones) - 1; i >= 0; i-- {
+						stone := c.rolloutStones[i]
+						c.board.RemoveStone(stone.turn, stone.x, stone.y)
+					}
 					return 1
 				} else {
-					// fmt.Println("Winner: White", "N", n)
+					for i := len(c.rolloutStones) - 1; i >= 0; i-- {
+						stone := c.rolloutStones[i]
+						c.board.RemoveStone(stone.turn, stone.x, stone.y)
+					}
 					return -1
 				}
 			} else if score == 0 {
-				// fmt.Println("Draw: N", n)
+				for i := len(c.rolloutStones) - 1; i >= 0; i-- {
+					stone := c.rolloutStones[i]
+					c.board.RemoveStone(stone.turn, stone.x, stone.y)
+				}
 				return 0
 			}
-			c.board.PlaceStone(c.turn, x, y)
-			// fmt.Printf("Stone %v %c%d\n", c.turn, x+'a', board.Size-y)
-			// fmt.Println(&c.board)
+			c.board.PlaceStone(turn, x, y)
+			c.rolloutStones = append(c.rolloutStones, rolloutStone{turn, x, y})
 			n++
 		}
-		if c.turn == board.Black {
-			c.turn = board.White
+		if turn == board.Black {
+			turn = board.White
 		} else {
-			c.turn = board.Black
+			turn = board.Black
 		}
 	}
 }
