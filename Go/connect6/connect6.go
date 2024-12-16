@@ -128,9 +128,12 @@ func (c *Connect6) Rollout(rnd *rand.Rand) float32 {
 	n := 0
 	for {
 		for range 2 {
+			if n >= 80 {
+				return 0
+			}
 			x, y, score, winner := c.board.BestPlace(c.turn, rnd)
 			if winner {
-				fmt.Printf("-- BestPlace: %v %c%d score %d winner %v\n", c.turn, x+'a', board.Size-y, score, winner)
+				//fmt.Printf("-- BestPlace: %v %c%d score %d winner %v\n", c.turn, x+'a', board.Size-y, score, winner)
 				if c.turn == board.Black {
 					// fmt.Println("Winner: Black", "N", n)
 					return 1

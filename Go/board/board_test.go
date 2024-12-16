@@ -64,4 +64,11 @@ func TestPlaceStones(t *testing.T) {
 		b.PlaceStone(stone, x, y)
 	}
 	t.Logf("%#v\n", &b)
+	for i := len(moves) - 1; i >= 0; i-- {
+		b.RemoveStone(moves[i].stone, moves[i].x, moves[i].y)
+	}
+	t.Logf("%#v\n", &b)
+	if MakeBoard() != b {
+		t.Fail()
+	}
 }

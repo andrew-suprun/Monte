@@ -70,18 +70,30 @@ func (b *Board) IsDrawing(turn Stone, x, y int) bool {
 }
 
 func (b *Board) PlaceStone(stone Stone, x, y int) {
+	b.placeStone(stone, x, y, 1)
+}
+
+func (b *Board) RemoveStone(stone Stone, x, y int) {
+	b.placeStone(stone, x, y, -1)
+}
+
+func (b *Board) placeStone(stone Stone, x, y, coef int) {
+	if coef == -1 {
+		b.stones[y][x] = None
+	}
+
 	{
 		start := max(0, x-maxStones1)
 		end := min(x+maxStones, Size) - maxStones1
 		n := end - start
-		b.updateRow(stone, start, y, 1, 0, n)
+		b.updateRow(stone, start, y, 1, 0, n, coef)
 	}
 
 	{
 		start := max(0, y-maxStones1)
 		end := min(y+maxStones, Size) - maxStones1
 		n := end - start
-		b.updateRow(stone, x, start, 0, 1, n)
+		b.updateRow(stone, x, start, 0, 1, n, coef)
 	}
 
 	m := 1 + min(x, y, Size-1-x, Size-1-y)
@@ -92,7 +104,7 @@ func (b *Board) PlaceStone(stone Stone, x, y int) {
 			mn := min(x, y, maxStones1)
 			xStart := x - mn
 			yStart := y - mn
-			b.updateRow(stone, xStart, yStart, 1, 1, n)
+			b.updateRow(stone, xStart, yStart, 1, 1, n, coef)
 		}
 	}
 
@@ -102,16 +114,17 @@ func (b *Board) PlaceStone(stone Stone, x, y int) {
 			mn := min(Size-1-x, y, maxStones1)
 			xStart := x + mn
 			yStart := y - mn
-			b.updateRow(stone, xStart, yStart, -1, 1, n)
+			b.updateRow(stone, xStart, yStart, -1, 1, n, coef)
 		}
 	}
 
-	b.stones[y][x] = stone
+	if coef == 1 {
+		b.stones[y][x] = stone
+	}
 	b.validate()
 }
 
-func (b *Board) updateRow(stone Stone, x, y, dx, dy, n int) {
-	// fmt.Printf("updateRow: %v [%d:%d] [%d:%d] n: %d\n", stone, x, y, dx, dy, n)
+func (b *Board) updateRow(stone Stone, x, y, dx, dy, n, coef int) {
 	stones := Stone(0)
 	for i := 0; i < maxStones1; i++ {
 		stones += b.stones[y+i*dy][x+i*dx]
@@ -119,16 +132,10 @@ func (b *Board) updateRow(stone Stone, x, y, dx, dy, n int) {
 	for range n {
 		stones += b.stones[y+maxStones1*dy][x+maxStones1*dx]
 		score, winner := scoreStones(stone, stones)
-		// if winner != None {
-		// 	fmt.Printf("updateRow.Winner %v %c%d stones: %2x  score: %d\n", winner, x+'a', Size-y, byte(stones), score)
-		// }
 		if score != 0 {
 			for j := 0; j < maxStones; j++ {
-				b.scores[y+j*dy][x+j*dx] += score
-				b.winners[y+j*dy][x+j*dx] |= winner
-				// if winner != None {
-				// 	fmt.Printf("    %v: %c%d stones: %2x  score: %d\n", winner, (x+j*dx)+'a', Size-(y+j*dy), byte(stones), score)
-				// }
+				b.scores[y+j*dy][x+j*dx] += score * Score(coef)
+				b.winners[y+j*dy][x+j*dx] += winner * Stone(coef)
 			}
 		}
 		stones -= b.stones[y][x]
