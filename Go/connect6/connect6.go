@@ -25,15 +25,9 @@ func (m Move) String() string {
 	return fmt.Sprintf("%c%d-%c%d", x1+'a', board.Size-y1, x2+'a', board.Size-y2)
 }
 
-type rolloutStone struct {
-	turn board.Stone
-	x, y int
-}
-
 type Connect6 struct {
-	turn          board.Stone
-	board         board.Board
-	rolloutStones []rolloutStone
+	turn  board.Stone
+	board board.Board
 }
 
 func MakeGame() Connect6 {
@@ -131,46 +125,7 @@ func (c *Connect6) PossibleMoves(moves *[]Move) {
 }
 
 func (c *Connect6) Rollout(rnd *rand.Rand) float32 {
-	c.rolloutStones = c.rolloutStones[:0]
-	turn := c.turn
-	n := 0
-	for {
-		for range 2 {
-			if n >= 80 {
-				return 0
-			}
-			x, y, score, winner := c.board.BestPlace(turn, rnd)
-			if winner {
-				if turn == board.Black {
-					for i := len(c.rolloutStones) - 1; i >= 0; i-- {
-						stone := c.rolloutStones[i]
-						c.board.RemoveStone(stone.turn, stone.x, stone.y)
-					}
-					return 1
-				} else {
-					for i := len(c.rolloutStones) - 1; i >= 0; i-- {
-						stone := c.rolloutStones[i]
-						c.board.RemoveStone(stone.turn, stone.x, stone.y)
-					}
-					return -1
-				}
-			} else if score == 0 {
-				for i := len(c.rolloutStones) - 1; i >= 0; i-- {
-					stone := c.rolloutStones[i]
-					c.board.RemoveStone(stone.turn, stone.x, stone.y)
-				}
-				return 0
-			}
-			c.board.PlaceStone(turn, x, y)
-			c.rolloutStones = append(c.rolloutStones, rolloutStone{turn, x, y})
-			n++
-		}
-		if turn == board.Black {
-			turn = board.White
-		} else {
-			turn = board.Black
-		}
-	}
+	return c.board.Rollout(c.turn, 2, rnd)
 }
 
 func (c *Connect6) ParseMove(moveStr string) (Move, error) {

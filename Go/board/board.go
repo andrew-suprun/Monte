@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/rand"
 )
 
 type (
@@ -35,6 +34,11 @@ type Board struct {
 	stones  [Size][Size]Stone
 	winners [Size][Size]Stone
 	scores  [Size][Size]Score
+}
+
+type rolloutStone struct {
+	turn Stone
+	x, y int
 }
 
 func MakeBoard() Board {
@@ -70,30 +74,18 @@ func (b *Board) IsDrawing(turn Stone, x, y int) bool {
 }
 
 func (b *Board) PlaceStone(stone Stone, x, y int) {
-	b.placeStone(stone, x, y, 1)
-}
-
-func (b *Board) RemoveStone(stone Stone, x, y int) {
-	b.placeStone(stone, x, y, -1)
-}
-
-func (b *Board) placeStone(stone Stone, x, y, coef int) {
-	if coef == -1 {
-		b.stones[y][x] = None
-	}
-
 	{
 		start := max(0, x-maxStones1)
 		end := min(x+maxStones, Size) - maxStones1
 		n := end - start
-		b.updateRow(stone, start, y, 1, 0, n, coef)
+		b.updateRow(stone, start, y, 1, 0, n)
 	}
 
 	{
 		start := max(0, y-maxStones1)
 		end := min(y+maxStones, Size) - maxStones1
 		n := end - start
-		b.updateRow(stone, x, start, 0, 1, n, coef)
+		b.updateRow(stone, x, start, 0, 1, n)
 	}
 
 	m := 1 + min(x, y, Size-1-x, Size-1-y)
@@ -104,7 +96,7 @@ func (b *Board) placeStone(stone Stone, x, y, coef int) {
 			mn := min(x, y, maxStones1)
 			xStart := x - mn
 			yStart := y - mn
-			b.updateRow(stone, xStart, yStart, 1, 1, n, coef)
+			b.updateRow(stone, xStart, yStart, 1, 1, n)
 		}
 	}
 
@@ -114,17 +106,15 @@ func (b *Board) placeStone(stone Stone, x, y, coef int) {
 			mn := min(Size-1-x, y, maxStones1)
 			xStart := x + mn
 			yStart := y - mn
-			b.updateRow(stone, xStart, yStart, -1, 1, n, coef)
+			b.updateRow(stone, xStart, yStart, -1, 1, n)
 		}
 	}
 
-	if coef == 1 {
-		b.stones[y][x] = stone
-	}
+	b.stones[y][x] = stone
 	b.validate()
 }
 
-func (b *Board) updateRow(stone Stone, x, y, dx, dy, n, coef int) {
+func (b *Board) updateRow(stone Stone, x, y, dx, dy, n int) {
 	stones := Stone(0)
 	for i := 0; i < maxStones1; i++ {
 		stones += b.stones[y+i*dy][x+i*dx]
@@ -134,8 +124,8 @@ func (b *Board) updateRow(stone Stone, x, y, dx, dy, n, coef int) {
 		score, winner := scoreStones(stone, stones)
 		if score != 0 {
 			for j := 0; j < maxStones; j++ {
-				b.scores[y+j*dy][x+j*dx] += score * Score(coef)
-				b.winners[y+j*dy][x+j*dx] += winner * Stone(coef)
+				b.scores[y+j*dy][x+j*dx] += score
+				b.winners[y+j*dy][x+j*dx] += winner
 			}
 		}
 		stones -= b.stones[y][x]
@@ -144,35 +134,51 @@ func (b *Board) updateRow(stone Stone, x, y, dx, dy, n, coef int) {
 	}
 }
 
-func (b *Board) BestPlace(turn Stone, rnd *rand.Rand) (int, int, Score, bool) {
+func (b Board) Rollout(turn Stone, steps int) float32 {
+	n := 0
+	for {
+		for range steps {
+			if n >= 80 { // TODO Optimize this value
+				return 0
+			}
+			x, y, score, winner := b.BestPlace(turn)
+			if winner {
+				fmt.Println("n =", n)
+				if turn == Black {
+					return 1
+				} else {
+					return -1
+				}
+			} else if score == 0 {
+				return 0
+			}
+			b.PlaceStone(turn, x, y)
+			n++
+		}
+		if turn == Black {
+			turn = White
+		} else {
+			turn = Black
+		}
+	}
+}
+
+func (b *Board) BestPlace(turn Stone) (int, int, Score, bool) {
 	xx, yy, bestScore := 0, 0, Score(0)
-	prob := 2
 	for y := range Size {
 		for x := range Size {
 			if b.stones[y][x] != None {
 				continue
 			}
 			if b.winners[y][x] == turn {
-				// fmt.Printf("BestPlace Winner %v: %c%d Score: %d\n", turn, x+'a', Size-y, b.scores[y][x])
 				return x, y, b.scores[y][x], true
 			}
 			score := b.scores[y][x]
 			if score > bestScore {
-				// fmt.Printf("bp1: old %c%d new %c%d: score %d, best %d\n", xx+'a', Size-yy, x+'a', Size-y, score, bestScore)
 				xx, yy, bestScore = x, y, score
-				prob = 2
-			} else if score == bestScore {
-				if rnd.Intn(prob) == 0 {
-					// fmt.Printf("bp2: old %c%d new %c%d: score %d, prob %v\n", xx+'a', Size-yy, x+'a', Size-y, score, prob)
-					xx, yy = x, y
-					prob++
-					// } else {
-					// 	fmt.Printf("bp2: old %c%d new %c%d: score %d, prob %v\n", xx+'a', Size-yy, x+'a', Size-y, score, prob)
-				}
 			}
 		}
 	}
-	// fmt.Printf("BestPlace Score %d: %c%d\n", bestScore, xx+'a', Size-yy)
 	return xx, yy, bestScore, false
 }
 

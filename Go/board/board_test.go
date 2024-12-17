@@ -41,11 +41,32 @@ func TestPlaceStones(t *testing.T) {
 		b.PlaceStone(stone, x, y)
 	}
 	t.Logf("%#v\n", &b)
-	for i := len(moves) - 1; i >= 0; i-- {
-		b.RemoveStone(moves[i].stone, moves[i].x, moves[i].y)
-	}
-	t.Logf("%#v\n", &b)
-	if MakeBoard() != b {
+}
+
+func TestRollout(t *testing.T) {
+	board := MakeBoard()
+	board.PlaceStone(Black, 9, 9)
+	board.PlaceStone(White, 9, 10)
+	board.PlaceStone(White, 10, 2)
+	fmt.Println(board.Rollout(Black, 2))
+	fmt.Printf("%#v\n", &board)
+
+	board2 := MakeBoard()
+	board2.PlaceStone(Black, 9, 9)
+	board2.PlaceStone(White, 8, 8)
+	board2.PlaceStone(White, 8, 10)
+	if board != board2 {
 		t.Fail()
+	}
+}
+
+func BenchmarkRollout(b *testing.B) {
+	board := MakeBoard()
+	board.PlaceStone(Black, 9, 9)
+	board.PlaceStone(White, 8, 8)
+	board.PlaceStone(White, 8, 10)
+
+	for range b.N {
+		board.Rollout(Black, 2)
 	}
 }

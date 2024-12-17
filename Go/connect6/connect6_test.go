@@ -27,12 +27,3 @@ func TestRollout(t *testing.T) {
 	}
 	fmt.Println("scores", scores)
 }
-
-func BenchmarkRollout(b *testing.B) {
-	rnd := rand.New(rand.NewSource(0))
-	game := MakeGame()
-	game.PlayMove(MakeMove(9, 9, 9, 9))
-	for range b.N {
-		game.Rollout(rnd)
-	}
-}
