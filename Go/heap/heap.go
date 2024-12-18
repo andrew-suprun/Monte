@@ -1,88 +1,63 @@
 package heap
 
-import (
-	"bytes"
-	"fmt"
-)
-
-type Less[E any] func(E, E) bool
-
-type Heap[E any] struct {
-	items []E
-	less  Less[E]
+type Comparable[t any] interface {
+	Less(other t) bool
 }
 
-func NewHeap[E any](items []E, less Less[E]) *Heap[E] {
-	return &Heap[E]{
-		items: items,
-		less:  less,
-	}
-}
-
-func (h *Heap[E]) Add(e E) {
-	if len(h.items) == cap(h.items) {
-		if !h.less(h.items[0], e) {
+func Add[E Comparable[E]](items *[]E, e E) {
+	if len(*items) == cap(*items) {
+		if !(*items)[0].Less(e) {
 			return
 		}
-		h.items[0] = e
-		h.siftDown()
+		(*items)[0] = e
+		siftDown(items)
 		return
 	}
-	h.items = append(h.items, e)
-	h.siftUp()
+	*items = append(*items, e)
+	siftUp(items)
 }
 
-func (h *Heap[E]) Validate() {
-	for i := range h.items[1:] {
-		if h.less(h.items[i], h.items[(i-1)/2]) {
-			fmt.Println(h.items[(i-1)/2], h.items[i])
-			panic("### heap.Validate ###")
+func Validate[E Comparable[E]](items *[]E) {
+	for i := range (*items)[1:] {
+		if (*items)[i].Less((*items)[(i-1)/2]) {
+			panic("### heap.Validate() ###")
 		}
 	}
 }
 
-func (h *Heap[E]) String() string {
-	buf := &bytes.Buffer{}
-	fmt.Fprintln(buf, "---- Heap")
-	for _, item := range h.items {
-		fmt.Fprintf(buf, "  - %v\n", item)
-	}
-	return buf.String()
-}
-
-func (h *Heap[E]) siftUp() {
-	childIdx := len(h.items) - 1
-	child := h.items[childIdx]
-	for childIdx > 0 && h.less(child, h.items[(childIdx-1)/2]) {
+func siftUp[E Comparable[E]](items *[]E) {
+	childIdx := len(*items) - 1
+	child := (*items)[childIdx]
+	for childIdx > 0 && child.Less((*items)[(childIdx-1)/2]) {
 		parentIdx := (childIdx - 1) / 2
-		parent := h.items[parentIdx]
-		h.items[childIdx] = parent
+		parent := (*items)[parentIdx]
+		(*items)[childIdx] = parent
 		childIdx = parentIdx
 	}
-	h.items[childIdx] = child
+	(*items)[childIdx] = child
 }
 
-func (h *Heap[E]) siftDown() {
+func siftDown[E Comparable[E]](items *[]E) {
 	idx := 0
-	elem := h.items[idx]
+	elem := (*items)[idx]
 	for {
 		first := idx
 		leftChildIdx := idx*2 + 1
-		if leftChildIdx < len(h.items) && h.less(h.items[leftChildIdx], elem) {
+		if leftChildIdx < len(*items) && (*items)[leftChildIdx].Less(elem) {
 			first = leftChildIdx
 		}
 		rightChildIdx := idx*2 + 2
-		if rightChildIdx < len(h.items) &&
-			h.less(h.items[rightChildIdx], elem) &&
-			h.less(h.items[rightChildIdx], h.items[leftChildIdx]) {
+		if rightChildIdx < len(*items) &&
+			(*items)[rightChildIdx].Less(elem) &&
+			(*items)[rightChildIdx].Less((*items)[leftChildIdx]) {
 			first = rightChildIdx
 		}
 		if idx == first {
 			break
 		}
 
-		h.items[idx] = h.items[first]
+		(*items)[idx] = (*items)[first]
 		idx = first
 	}
-	h.items[idx] = elem
+	(*items)[idx] = elem
 }
