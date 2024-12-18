@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"monte/heap"
 	"testing"
 )
 
-type testMove struct {
+type testPlace struct {
 	x, y  int
 	stone Stone
 }
@@ -25,7 +26,7 @@ func TestPlaceStone(t *testing.T) {
 
 func TestPlaceStones(t *testing.T) {
 	rnd := rand.New(rand.NewSource(3))
-	moves := []testMove{}
+	places := []testPlace{}
 	b := MakeBoard()
 	for range 300 {
 		x := rnd.Intn(Size)
@@ -37,10 +38,28 @@ func TestPlaceStones(t *testing.T) {
 		if rnd.Intn(2) == 0 {
 			stone = White
 		}
-		moves = append(moves, testMove{x, y, stone})
+		places = append(places, testPlace{x, y, stone})
 		b.PlaceStone(stone, x, y)
 	}
 	t.Logf("%#v\n", &b)
+}
+
+func TestTopPlaces(t *testing.T) {
+	places := make([]Place, 0, 30)
+	board := MakeBoard()
+	board.PlaceStone(Black, 9, 9)
+	board.PlaceStone(White, 8, 8)
+	board.PlaceStone(White, 8, 10)
+	board.TopPlaces(&places)
+	heap.Validate(&places)
+	m := map[Score]int{}
+	for _, place := range places {
+		m[place.Score] = m[place.Score] + 1
+	}
+	if m[175] != 1 || m[121] != 2 {
+		t.Fail()
+	}
+	fmt.Println(m)
 }
 
 func TestRollout(t *testing.T) {

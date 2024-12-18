@@ -4,12 +4,23 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"monte/heap"
 )
 
+type Board struct {
+	stones  [Size][Size]Stone
+	winners [Size][Size]Stone
+	scores  [Size][Size]Score
+}
+
+type Place struct {
+	X, Y int
+	Score
+}
+
 type (
-	Stone  byte
-	Winner byte
-	Score  int32
+	Stone byte
+	Score int32
 )
 
 const (
@@ -17,6 +28,10 @@ const (
 	Black Stone = 0x01
 	White Stone = 0x10
 )
+
+func (place Place) Less(other Place) bool {
+	return place.Score < other.Score
+}
 
 func (stone Stone) String() string {
 	switch stone {
@@ -29,17 +44,6 @@ func (stone Stone) String() string {
 }
 
 const maxStones1 = maxStones - 1
-
-type Board struct {
-	stones  [Size][Size]Stone
-	winners [Size][Size]Stone
-	scores  [Size][Size]Score
-}
-
-type rolloutStone struct {
-	turn Stone
-	x, y int
-}
 
 func MakeBoard() Board {
 	board := Board{}
@@ -57,10 +61,12 @@ func MakeBoard() Board {
 	return board
 }
 
+// TODO Is it needed?
 func (b *Board) Stone(x, y int) Stone {
 	return b.stones[y][x]
 }
 
+// TODO Is it needed?
 func (b *Board) Score(stone Stone, x, y int) (Score, Stone) {
 	return b.scores[y][x], b.winners[y][x]
 }
@@ -71,6 +77,18 @@ func (b *Board) IsWinning(turn Stone, x, y int) bool {
 
 func (b *Board) IsDrawing(turn Stone, x, y int) bool {
 	return b.winners[y][x] == 0
+}
+
+func (b *Board) TopPlaces(places *[]Place) {
+	*places = (*places)[:0]
+	for y := 0; y < Size; y++ {
+		for x := 0; x < Size; x++ {
+			if b.stones[y][x] != None {
+				continue
+			}
+			heap.Add(places, Place{x, y, b.scores[y][x]})
+		}
+	}
 }
 
 func (b *Board) PlaceStone(stone Stone, x, y int) {
