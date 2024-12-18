@@ -46,8 +46,8 @@ func TestPlaceStones(t *testing.T) {
 func TestRollout(t *testing.T) {
 	board := MakeBoard()
 	board.PlaceStone(Black, 9, 9)
-	board.PlaceStone(White, 9, 10)
-	board.PlaceStone(White, 10, 2)
+	board.PlaceStone(White, 8, 8)
+	board.PlaceStone(White, 8, 10)
 	fmt.Println(board.Rollout(Black, 2))
 	fmt.Printf("%#v\n", &board)
 

@@ -138,7 +138,7 @@ func (b Board) Rollout(turn Stone, steps int) float32 {
 	n := 0
 	for {
 		for range steps {
-			if n >= 80 { // TODO Optimize this value
+			if n >= 40 { // TODO Optimize this value
 				return 0
 			}
 			x, y, score, winner := b.BestPlace(turn)

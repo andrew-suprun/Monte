@@ -125,7 +125,7 @@ func (c *Connect6) PossibleMoves(moves *[]Move) {
 }
 
 func (c *Connect6) Rollout(rnd *rand.Rand) float32 {
-	return c.board.Rollout(c.turn, 2, rnd)
+	return c.board.Rollout(c.turn, 2)
 }
 
 func (c *Connect6) ParseMove(moveStr string) (Move, error) {
