@@ -14,8 +14,9 @@ type Board struct {
 }
 
 type Place struct {
-	X, Y int
-	Score
+	X, Y   int
+	Score  Score
+	Winner Stone
 }
 
 type (
@@ -86,7 +87,13 @@ func (b *Board) TopPlaces(places *[]Place) {
 			if b.stones[y][x] != None {
 				continue
 			}
-			heap.Add(places, Place{x, y, b.scores[y][x]})
+			winner := b.winners[y][x]
+			if winner != None {
+				(*places)[0] = Place{x, y, b.scores[y][x], winner}
+				*places = (*places)[:1]
+				return
+			}
+			heap.Add(places, Place{x, y, b.scores[y][x], None})
 		}
 	}
 }
