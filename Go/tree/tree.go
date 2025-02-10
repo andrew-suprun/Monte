@@ -11,7 +11,7 @@ import (
 // type Board[move Equatable[move], self any] interface {
 type Board[self any, move any] interface {
 	Copy() self
-	Rollout(Turn, move) Value
+	Rollout(Turn, int) Value
 }
 
 type Game[board Board[board, move], move Equatable[move]] interface {

@@ -2,15 +2,18 @@ package connect6
 
 import (
 	"fmt"
-	"monte/common"
 	"sort"
 	"testing"
+
+	"monte/board"
+	"monte/common"
 )
 
 func TestRollout(t *testing.T) {
+	board := board.MakeBoard()
 	game := MakeGame(20)
-	game.PlayMove(Move{9, 9, 9, 9})
-	rolloutScore := game.rollout(Move{8, 8, 8, 10})
+	game.PlayMove(&board, Move{9, 9, 9, 9})
+	rolloutScore := game.rollout(&board, Move{8, 8, 8, 10})
 	fmt.Println(rolloutScore)
 }
 
@@ -29,28 +32,32 @@ func (b byScore) Swap(i, j int) {
 }
 
 func TestTopMoves(t *testing.T) {
-	moves := make([]common.MoveValue[Move], 0, 60)
+	board := board.MakeBoard()
 	game := MakeGame(20)
-	game.PlayMove(Move{9, 9, 9, 9})
-	game.PlayMove(Move{8, 8, 8, 10})
-	game.TopMoves(&moves)
+	moves := make([]common.MoveValue[Move], 0, 60)
+
+	game.PlayMove(&board, Move{9, 9, 9, 9})
+	game.PlayMove(&board, Move{8, 8, 8, 10})
+	fmt.Println(&board)
+	game.TopMoves(&board, &moves)
 
 	sort.Sort(byScore(moves))
 
-	fmt.Println(&game.board)
+	fmt.Println(&board)
 	for i, move := range moves {
-		fmt.Printf("%3d %#v\n", i+1, move)
+		fmt.Printf("%3d %v\n", i+1, move)
 	}
 }
 
 func BenchmarkTopMoves(b *testing.B) {
-	moves := make([]common.MoveValue[Move], 0, 60)
-	game := MakeGame(32)
-	game.PlayMove(Move{9, 9, 9, 9})
-	game.PlayMove(Move{8, 8, 8, 10})
+	board := board.MakeBoard()
+	game := MakeGame(30)
+	moves := make([]common.MoveValue[Move], 0, 30)
+	game.PlayMove(&board, Move{9, 9, 9, 9})
+	game.PlayMove(&board, Move{8, 8, 8, 10})
 
 	b.ResetTimer()
 	for range b.N {
-		game.TopMoves(&moves)
+		game.TopMoves(&board, &moves)
 	}
 }

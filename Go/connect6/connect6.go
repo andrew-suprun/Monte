@@ -29,14 +29,12 @@ func (m Move) String() string {
 
 type Connect6 struct {
 	turn   Turn
-	board  board.Board
 	places []board.Place
 }
 
 func MakeGame(maxPlaces int) Connect6 {
 	game := Connect6{
 		turn:   First,
-		board:  board.MakeBoard(),
 		places: make([]board.Place, 0, maxPlaces),
 	}
 	return game
@@ -64,45 +62,49 @@ func ParseMove(moveStr string) (Move, error) {
 	return Move{x1, y1, x2, y2}, nil
 }
 
-func (c *Connect6) PlayMove(move Move) {
-	c.board.PlaceStone(c.turn, int(move.x1), int(move.y1))
+func (c *Connect6) PlayMove(board *board.Board, move Move) bool {
+	if board.PlaceStone(c.turn, int(move.x1), int(move.y1)) {
+		return true
+	}
 	if move.x1 != move.x2 || move.y1 != move.y2 {
-		c.board.PlaceStone(c.turn, int(move.x2), int(move.y2))
+		if board.PlaceStone(c.turn, int(move.x2), int(move.y2)) {
+			return true
+		}
 	}
 	if c.turn == First {
 		c.turn = Second
 	} else {
 		c.turn = First
 	}
+	return false
 }
 
-func (c *Connect6) TopMoves(moves *[]MoveValue[Move]) {
-	drawMove := Move{}
-	nDraws := 0
-	c.board.TopPlaces(&c.places)
-
+func (c *Connect6) TopMoves(board *board.Board, moves *[]MoveValue[Move]) {
 	*moves = (*moves)[:0]
-	for i, place1 := range c.places {
-		if place1.Score == 0 {
-			switch nDraws {
-			case 0:
-				drawMove.x1 = int8(place1.X)
-				drawMove.y1 = int8(place1.Y)
-			case 1:
-				drawMove.x2 = int8(place1.X)
-				drawMove.y2 = int8(place1.Y)
-			}
-			nDraws++
-			continue
-		}
+	drawMove := Move{}
+	hasDraw := false
 
+	board.TopPlaces(&c.places)
+
+	for i, place1 := range c.places {
+		score1 := board.Score(place1.X, place1.Y)
 		for _, place2 := range c.places[i+1:] {
-			move := Move{place1.X, place1.Y, place2.X, place2.Y}
+			score := score1 + board.Score(place2.X, place2.Y)
+			if score == 0 {
+				if !hasDraw {
+					drawMove = Move{place1.X, place1.Y, place2.X, place2.Y}
+					hasDraw = true
+				}
+				continue
+			}
+
 			heap.Add(moves, MoveValue[Move]{
-				Move:  move,
-				Value: c.rollout(move),
-			})
+				Move:  Move{place1.X, place1.Y, place2.X, place2.Y},
+				Value: Value(score)})
 		}
+	}
+	for i := range *moves {
+		(*moves)[i].Value = c.rollout(board, (*moves)[i].Move)
 	}
 
 	if len(*moves) == 0 {
@@ -110,10 +112,12 @@ func (c *Connect6) TopMoves(moves *[]MoveValue[Move]) {
 	}
 }
 
-func (c *Connect6) rollout(move Move) Value {
-	board := c.board.Copy()
-	c.PlayMove(move)
-	return -board.Rollout(c.turn, 2)
+func (c *Connect6) rollout(board *board.Board, move Move) Value {
+	copy := board.Copy()
+	if c.PlayMove(copy, move) {
+		return Win
+	}
+	return -copy.Rollout(c.turn, 2)
 }
 
 func (c *Connect6) ParseMove(moveStr string) (Move, error) {

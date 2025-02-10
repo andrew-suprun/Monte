@@ -90,11 +90,6 @@ func TestRollout(t *testing.T) {
 	}
 }
 
-func getBoard() *Board {
-	b := MakeBoard()
-	return &b
-}
-
 func BenchmarkCopyBoard(b *testing.B) {
 	board := MakeBoard()
 	b.ResetTimer()
@@ -105,20 +100,17 @@ func BenchmarkCopyBoard(b *testing.B) {
 }
 
 func BenchmarkRollout(b *testing.B) {
-	board := getBoard()
-	b.ResetTimer()
-	for range b.N {
-		board.Rollout(First, 2)
-	}
-}
-
-func BenchmarkCopyRollout(b *testing.B) {
 	board := MakeBoard()
 	b.ResetTimer()
 	for range b.N {
 		copy := board.Copy()
-		for range 100 {
-			copy.Rollout(First, 2)
-		}
+		copy.Rollout(First, 2)
+	}
+}
+func BenchmarkBestPlace(b *testing.B) {
+	board := MakeBoard()
+	b.ResetTimer()
+	for range b.N {
+		board.BestPlace(First)
 	}
 }

@@ -62,23 +62,9 @@ func MakeBoard() Board {
 	return board
 }
 
-// TODO Is it needed?
-// func (b *Board) Stone(x, y int) Stone {
-// 	return b.stones[y][x]
-// }
-
-// // TODO Is it needed?
-// func (b *Board) Score(stone Stone, x, y int) (Score, Stone) {
-// 	return b.scores[y][x], b.winners[y][x]
-// }
-
-// func (b *Board) IsWinning(turn Stone, x, y int) bool {
-// 	return b.winners[y][x] == turn
-// }
-
-// func (b *Board) IsDrawing(turn Stone, x, y int) bool {
-// 	return b.winners[y][x] == 0
-// }
+func (b *Board) Score(x, y int8) int16 {
+	return int16(b.scores[y][x])
+}
 
 func (b *Board) TopPlaces(places *[]Place) {
 	*places = (*places)[:0]
