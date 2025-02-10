@@ -28,7 +28,6 @@ func TestHeap(t *testing.T) {
 	for i := range 100 {
 		Add(&items, values[i])
 	}
-	items[0] = 200
 	fmt.Println(items)
 	Validate(&items)
 }

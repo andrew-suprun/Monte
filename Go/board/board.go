@@ -4,24 +4,24 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	. "monte/common"
 	"monte/heap"
 )
 
 type Board struct {
-	stones  [Size][Size]Stone
-	winners [Size][Size]Stone
-	scores  [Size][Size]Score
+	stones [Size][Size]Stone
+	scores [Size][Size]Score
 }
 
 type Place struct {
-	X, Y   int
-	Score  Score
-	Winner Stone
+	X, Y  int8
+	Score Score
 }
 
 type (
 	Stone byte
-	Score int32
+	Score int16
 )
 
 const (
@@ -63,54 +63,52 @@ func MakeBoard() Board {
 }
 
 // TODO Is it needed?
-func (b *Board) Stone(x, y int) Stone {
-	return b.stones[y][x]
-}
+// func (b *Board) Stone(x, y int) Stone {
+// 	return b.stones[y][x]
+// }
 
-// TODO Is it needed?
-func (b *Board) Score(stone Stone, x, y int) (Score, Stone) {
-	return b.scores[y][x], b.winners[y][x]
-}
+// // TODO Is it needed?
+// func (b *Board) Score(stone Stone, x, y int) (Score, Stone) {
+// 	return b.scores[y][x], b.winners[y][x]
+// }
 
-func (b *Board) IsWinning(turn Stone, x, y int) bool {
-	return b.winners[y][x] == turn
-}
+// func (b *Board) IsWinning(turn Stone, x, y int) bool {
+// 	return b.winners[y][x] == turn
+// }
 
-func (b *Board) IsDrawing(turn Stone, x, y int) bool {
-	return b.winners[y][x] == 0
-}
+// func (b *Board) IsDrawing(turn Stone, x, y int) bool {
+// 	return b.winners[y][x] == 0
+// }
 
 func (b *Board) TopPlaces(places *[]Place) {
 	*places = (*places)[:0]
-	for y := 0; y < Size; y++ {
-		for x := 0; x < Size; x++ {
+	for y := int8(0); y < Size; y++ {
+		for x := int8(0); x < Size; x++ {
 			if b.stones[y][x] != None {
 				continue
 			}
-			winner := b.winners[y][x]
-			if winner != None {
-				(*places)[0] = Place{x, y, b.scores[y][x], winner}
-				*places = (*places)[:1]
-				return
-			}
-			heap.Add(places, Place{x, y, b.scores[y][x], None})
+			heap.Add(places, Place{x, y, b.scores[y][x]})
 		}
 	}
 }
 
-func (b *Board) PlaceStone(stone Stone, x, y int) {
+func (b *Board) PlaceStone(turn Turn, x, y int) bool {
 	{
 		start := max(0, x-maxStones1)
 		end := min(x+maxStones, Size) - maxStones1
 		n := end - start
-		b.updateRow(stone, start, y, 1, 0, n)
+		if b.updateRow(turn, start, y, 1, 0, n) {
+			return true
+		}
 	}
 
 	{
 		start := max(0, y-maxStones1)
 		end := min(y+maxStones, Size) - maxStones1
 		n := end - start
-		b.updateRow(stone, x, start, 0, 1, n)
+		if b.updateRow(turn, x, start, 0, 1, n) {
+			return true
+		}
 	}
 
 	m := 1 + min(x, y, Size-1-x, Size-1-y)
@@ -121,7 +119,9 @@ func (b *Board) PlaceStone(stone Stone, x, y int) {
 			mn := min(x, y, maxStones1)
 			xStart := x - mn
 			yStart := y - mn
-			b.updateRow(stone, xStart, yStart, 1, 1, n)
+			if b.updateRow(turn, xStart, yStart, 1, 1, n) {
+				return true
+			}
 		}
 	}
 
@@ -131,72 +131,80 @@ func (b *Board) PlaceStone(stone Stone, x, y int) {
 			mn := min(Size-1-x, y, maxStones1)
 			xStart := x + mn
 			yStart := y - mn
-			b.updateRow(stone, xStart, yStart, -1, 1, n)
+			if b.updateRow(turn, xStart, yStart, -1, 1, n) {
+				return true
+			}
 		}
 	}
 
-	b.stones[y][x] = stone
+	if turn == First {
+		b.stones[y][x] = Black
+	} else {
+		b.stones[y][x] = White
+	}
 	b.validate()
+	return false
 }
 
-func (b *Board) updateRow(stone Stone, x, y, dx, dy, n int) {
+func (b *Board) updateRow(turn Turn, x, y, dx, dy, n int) bool {
 	stones := Stone(0)
 	for i := 0; i < maxStones1; i++ {
 		stones += b.stones[y+i*dy][x+i*dx]
 	}
 	for range n {
 		stones += b.stones[y+maxStones1*dy][x+maxStones1*dx]
-		score, winner := scoreStones(stone, stones)
+		if stones == maxStones1 || stones == maxStones1*White {
+			return true
+		}
+		score := scoreStones(turn, stones)
 		if score != 0 {
 			for j := 0; j < maxStones; j++ {
 				b.scores[y+j*dy][x+j*dx] += score
-				b.winners[y+j*dy][x+j*dx] += winner
 			}
 		}
 		stones -= b.stones[y][x]
 		x += dx
 		y += dy
 	}
+	return false
 }
 
-func (b Board) Rollout(turn Stone, steps int) float32 {
-	n := 0
+func (b *Board) Copy() *Board {
+	board := *b
+	return &board
+}
+
+func (b *Board) Rollout(turn Turn, stonesPerMove int) Value {
+	roTurn := turn
 	for {
-		for range steps {
-			if n >= 40 { // TODO Optimize this value
+		for range stonesPerMove {
+			x, y, score := b.BestPlace(roTurn)
+			if score == 0 {
 				return 0
 			}
-			x, y, score, winner := b.BestPlace(turn)
+			winner := b.PlaceStone(roTurn, x, y)
 			if winner {
-				fmt.Println("n =", n)
-				if turn == Black {
+				if turn == roTurn {
 					return 1
 				} else {
 					return -1
 				}
-			} else if score == 0 {
-				return 0
 			}
-			b.PlaceStone(turn, x, y)
-			n++
 		}
-		if turn == Black {
-			turn = White
+		if roTurn == First {
+			roTurn = Second
 		} else {
-			turn = Black
+			roTurn = First
 		}
 	}
 }
 
-func (b *Board) BestPlace(turn Stone) (int, int, Score, bool) {
+func (b *Board) BestPlace(turn Turn) (int, int, Score) {
 	xx, yy, bestScore := 0, 0, Score(0)
 	for y := range Size {
 		for x := range Size {
 			if b.stones[y][x] != None {
 				continue
-			}
-			if b.winners[y][x] == turn {
-				return x, y, b.scores[y][x], true
 			}
 			score := b.scores[y][x]
 			if score > bestScore {
@@ -204,7 +212,7 @@ func (b *Board) BestPlace(turn Stone) (int, int, Score, bool) {
 			}
 		}
 	}
-	return xx, yy, bestScore, false
+	return xx, yy, bestScore
 }
 
 func (b *Board) String() string {
@@ -305,16 +313,7 @@ func (b *Board) ScoresString(buf *bytes.Buffer) {
 		for x := 0; x < Size; x++ {
 			switch b.stones[y][x] {
 			case None:
-				score := b.scores[y][x]
-				if score == 0 {
-					fmt.Fprintf(buf, "  (D) │")
-				} else if b.IsWinning(Black, x, y) {
-					fmt.Fprintf(buf, "  (B) │")
-				} else if b.IsWinning(White, x, y) {
-					fmt.Fprintf(buf, "  (W) │")
-				} else {
-					fmt.Fprintf(buf, "%5d │", b.scores[y][x])
-				}
+				fmt.Fprintf(buf, "%5d │", b.scores[y][x])
 			case Black:
 				buf.WriteString("    X │")
 			case White:
@@ -336,7 +335,7 @@ func (b *Board) ScoresString(buf *bytes.Buffer) {
 	buf.WriteString("\n")
 }
 
-func ParsePlace(place string) (int, int, error) {
+func ParsePlace(place string) (int8, int8, error) {
 	if len(place) < 2 || len(place) > 3 {
 		return 0, 0, errors.New("failed to parse place")
 	}
@@ -346,17 +345,17 @@ func ParsePlace(place string) (int, int, error) {
 	if place[1] < '0' || place[1] > '9' {
 		return 0, 0, errors.New("failed to parse place")
 	}
-	x := place[0] - 'a'
-	y := place[1] - '0'
+	x := int8(place[0] - 'a')
+	y := int8(place[1] - '0')
 	if len(place) == 3 {
 		if place[2] < '0' || place[2] > '9' {
 			return 0, 0, errors.New("failed to parse place")
 		}
-		y = 10*y + place[2] - '0'
+		y = 10*y + int8(place[2]-'0')
 	}
-	y = Size - y
-	if x > Size || y > Size {
+	y -= 1
+	if x >= Size || y >= Size {
 		return 0, 0, errors.New("failed to parse place")
 	}
-	return int(x), int(y), nil
+	return x, y, nil
 }

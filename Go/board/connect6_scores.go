@@ -2,6 +2,8 @@
 
 package board
 
+import "monte/common"
+
 const (
 	maxStones = 6
 )
@@ -15,49 +17,49 @@ const (
 	sixStones   Score = 720
 )
 
-func scoreStones(stone, stones Stone) (Score, Stone) {
-	if stone == Black {
+func scoreStones(turn common.Turn, stones Stone) Score {
+	if turn == common.First {
 		switch stones {
 		case 0x00:
-			return twoStones - oneStone, None
+			return twoStones - oneStone
 		case 0x01:
-			return threeStones - twoStones, None
+			return threeStones - twoStones
 		case 0x02:
-			return fourStones - threeStones, None
+			return fourStones - threeStones
 		case 0x03:
-			return fiveStones - fourStones, None
+			return fiveStones - fourStones
 		case 0x04:
-			return sixStones - fiveStones, Black
+			return sixStones - fiveStones
 		case 0x10:
-			return -twoStones, None
+			return -twoStones
 		case 0x20:
-			return -threeStones, None
+			return -threeStones
 		case 0x30:
-			return -fourStones, None
+			return -fourStones
 		case 0x40:
-			return -fiveStones, None
+			return -fiveStones
 		}
 	} else {
 		switch stones {
 		case 0x00:
-			return twoStones - oneStone, None
+			return twoStones - oneStone
 		case 0x01:
-			return -twoStones, None
+			return -twoStones
 		case 0x02:
-			return -threeStones, None
+			return -threeStones
 		case 0x03:
-			return -fourStones, None
+			return -fourStones
 		case 0x04:
-			return -fiveStones, None
+			return -fiveStones
 		case 0x10:
-			return threeStones - twoStones, None
+			return threeStones - twoStones
 		case 0x20:
-			return fourStones - threeStones, None
+			return fourStones - threeStones
 		case 0x30:
-			return fiveStones - fourStones, None
+			return fiveStones - fourStones
 		case 0x40:
-			return sixStones - fiveStones, White
+			return sixStones - fiveStones
 		}
 	}
-	return 0, None
+	return 0
 }

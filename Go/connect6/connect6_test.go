@@ -2,42 +2,26 @@ package connect6
 
 import (
 	"fmt"
-	"math/rand"
-	"monte/board"
+	"monte/common"
 	"sort"
 	"testing"
-	"time"
 )
 
 func TestRollout(t *testing.T) {
-	scores := [3]int{}
-	game := MakeGame()
-	game.PlayMove(MakeMove(9, 9, 9, 9))
-	game.PlayMove(MakeMove(0, 0, 1, 0))
-	for i := range int64(4) {
-		fmt.Println("--- Rollout", i)
-		newGame := game
-		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-		rolloutScore := newGame.Rollout(rnd)
-		if rolloutScore == -1 {
-			scores[0]++
-		} else if rolloutScore == 0 {
-			scores[1]++
-		} else if rolloutScore == 1 {
-			scores[2]++
-		}
-	}
-	fmt.Println("scores", scores)
+	game := MakeGame(60, 20)
+	game.PlayMove(Move{9, 9, 9, 9})
+	rolloutScore := game.rollout(Move{8, 8, 8, 10})
+	fmt.Println(rolloutScore)
 }
 
-type byScore []Move
+type byScore []common.MoveValue[Move]
 
 func (b byScore) Len() int {
 	return len(b)
 }
 
 func (b byScore) Less(i, j int) bool {
-	return b[i].score > b[j].score
+	return b[i].Value > b[j].Value
 }
 
 func (b byScore) Swap(i, j int) {
@@ -45,11 +29,10 @@ func (b byScore) Swap(i, j int) {
 }
 
 func TestTopMoves(t *testing.T) {
-	moves := make([]Move, 0, maxMoves)
-	game := MakeGame()
-	game.board.PlaceStone(board.Black, 9, 9)
-	game.board.PlaceStone(board.White, 8, 8)
-	game.board.PlaceStone(board.White, 8, 10)
+	moves := make([]common.MoveValue[Move], 0, 60)
+	game := MakeGame(60, 20)
+	game.PlayMove(Move{9, 9, 9, 9})
+	game.PlayMove(Move{8, 8, 8, 10})
 	game.TopMoves(&moves)
 
 	sort.Sort(byScore(moves))
@@ -61,11 +44,10 @@ func TestTopMoves(t *testing.T) {
 }
 
 func BenchmarkTopMoves(b *testing.B) {
-	moves := make([]Move, 0, maxMoves)
-	game := MakeGame()
-	game.board.PlaceStone(board.Black, 9, 9)
-	game.board.PlaceStone(board.White, 8, 8)
-	game.board.PlaceStone(board.White, 8, 10)
+	moves := make([]common.MoveValue[Move], 0, 60)
+	game := MakeGame(200, 30)
+	game.PlayMove(Move{9, 9, 9, 9})
+	game.PlayMove(Move{8, 8, 8, 10})
 
 	b.ResetTimer()
 	for range b.N {

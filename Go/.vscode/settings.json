@@ -1,9 +1,9 @@
 {
-    "go.buildTags": "debug,connect6",
+    "go.buildTags": "connect6,size19",
     "go.buildFlags": [
         "-v"
     ],
-    "go.testTags": "debug,connect6",
+    "go.testTags": "debug,connect6,size19",
     "go.testTimeout": "2s",
     "go.testFlags": [
         "-v"
