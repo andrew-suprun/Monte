@@ -139,7 +139,8 @@ func (b *Board) updateRow(turn Turn, x, y, dx, dy, n int) bool {
 	}
 	for range n {
 		stones += b.stones[y+maxStones1*dy][x+maxStones1*dx]
-		if stones == maxStones1 || stones == maxStones1*White {
+
+		if turn == First && stones == maxStones1 || turn == Second && stones == maxStones1*White {
 			return true
 		}
 		score := scoreStones(turn, stones)
@@ -162,13 +163,19 @@ func (b *Board) Copy() *Board {
 
 func (b *Board) Rollout(turn Turn, stonesPerMove int) Value {
 	roTurn := turn
+	n := 1
 	for {
 		for range stonesPerMove {
+			if n > 100 {
+				return 0
+			}
+			n++
 			x, y, score := b.BestPlace(roTurn)
 			if score == 0 {
 				return 0
 			}
 			winner := b.PlaceStone(roTurn, x, y)
+			fmt.Printf("place %d: %v %c%d%v\n", n, roTurn, x+'a', y+1, b)
 			if winner {
 				if turn == roTurn {
 					return 1
@@ -223,7 +230,7 @@ func (b *Board) BoardString(buf *bytes.Buffer) {
 	buf.WriteByte('\n')
 
 	for y := range Size {
-		fmt.Fprintf(buf, "%2d", Size-y)
+		fmt.Fprintf(buf, "%2d", y+1)
 		for x := range Size {
 			switch b.stones[y][x] {
 			case Black:
@@ -270,7 +277,7 @@ func (b *Board) BoardString(buf *bytes.Buffer) {
 				}
 			}
 		}
-		fmt.Fprintf(buf, " %2d\n", Size-y)
+		fmt.Fprintf(buf, " %2d\n", y+1)
 	}
 
 	buf.WriteString("  ")
