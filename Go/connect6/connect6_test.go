@@ -8,7 +8,7 @@ import (
 )
 
 func TestRollout(t *testing.T) {
-	game := MakeGame(60, 20)
+	game := MakeGame(20)
 	game.PlayMove(Move{9, 9, 9, 9})
 	rolloutScore := game.rollout(Move{8, 8, 8, 10})
 	fmt.Println(rolloutScore)
@@ -30,7 +30,7 @@ func (b byScore) Swap(i, j int) {
 
 func TestTopMoves(t *testing.T) {
 	moves := make([]common.MoveValue[Move], 0, 60)
-	game := MakeGame(60, 20)
+	game := MakeGame(20)
 	game.PlayMove(Move{9, 9, 9, 9})
 	game.PlayMove(Move{8, 8, 8, 10})
 	game.TopMoves(&moves)
@@ -45,7 +45,7 @@ func TestTopMoves(t *testing.T) {
 
 func BenchmarkTopMoves(b *testing.B) {
 	moves := make([]common.MoveValue[Move], 0, 60)
-	game := MakeGame(200, 30)
+	game := MakeGame(32)
 	game.PlayMove(Move{9, 9, 9, 9})
 	game.PlayMove(Move{8, 8, 8, 10})
 

@@ -33,7 +33,7 @@ type Connect6 struct {
 	places []board.Place
 }
 
-func MakeGame(maxMoves, maxPlaces int) Connect6 {
+func MakeGame(maxPlaces int) Connect6 {
 	game := Connect6{
 		turn:   First,
 		board:  board.MakeBoard(),
@@ -112,7 +112,8 @@ func (c *Connect6) TopMoves(moves *[]MoveValue[Move]) {
 
 func (c *Connect6) rollout(move Move) Value {
 	board := c.board.Copy()
-	return board.Rollout(c.turn, 2)
+	c.PlayMove(move)
+	return -board.Rollout(c.turn, 2)
 }
 
 func (c *Connect6) ParseMove(moveStr string) (Move, error) {
